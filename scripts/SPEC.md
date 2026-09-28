@@ -28,6 +28,25 @@ tests each point.
 - Opens the product's critic profile (`<product>-critic`) in a visible Herdr pane on that folder.
 - The critic writes `<plan folder>/critic.md` and ends it with a line containing only `END`.
 
+## factory product new <name> [--dry-run]
+
+- The operator creates `github.com/en3r0/<name>` first; the command stops if it does not exist (the
+  factory token cannot create repos).
+- Safe to re-run: each step checks what exists and does only what is missing. Steps: clone to
+  `~/Projects/<name>` (or check an existing clone's origin), set `core.hooksPath` to the factory
+  githooks, add the repo to `products.txt`, create the board and every column from `boards.toml`,
+  install every role in `roles/` except `head` as the profile `<name>-<role>` with the OpenRouter key
+  in its `.env` (chmod 600), and add a board harness for every Hermes role except the critic to
+  `config/herdr-board.toml`.
+- Empty repo, run by the operator: commits the starter files from `templates/product/` to `main`,
+  pushes, and creates `production` at the same commit. Run by an agent, that step is left for the
+  operator (agents never push to `main`).
+- Existing code: the default branch must already be `main`. No files are written; a missing
+  `AGENTS.md` means onboarding through a PR the operator reviews.
+- Public repo: checks for a ruleset and lists the steps if there is none. Private: guard-only.
+- Hermes is called without `HERMES_HOME`, which would otherwise hide every profile but the caller's.
+- Ends with a numbered "Left for the operator" list.
+
 ## factory tick (every minute)
 
 - Exits without doing anything while `~/.local/state/factory/hold` exists.
@@ -51,7 +70,8 @@ tests each point.
   `[harness.hermes-<product>-<role>] argv = ["~/.local/bin/factory-hermes-run", "<product>-<role>"]`.
 - Combines `$BOARD_SYSTEM_PROMPT` and `$BOARD_PROMPT` into one query file; runs Hermes interactively
   with `--yolo` (unattended workers can't answer approval prompts; guardrails come from hooks).
-- One card at a time per remembering role: a lock per profile; a second card waits visibly.
+- One card at a time per remembering role: a lock per profile; a second card waits visibly. Profiles
+  with `memory_enabled: false` (the general marketer) take no lock and run in parallel.
 - When the board records the run as ended, waits 30 s, then ends Hermes, releasing the lock. The pane
   keeps a shell with `hermes --resume <session>` for the operator. (Verified in step 3, 2026-09-28.)
 

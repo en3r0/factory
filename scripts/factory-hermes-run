@@ -5,7 +5,7 @@
 #
 # - herdr-board passes the column prompt in $BOARD_SYSTEM_PROMPT and the card prompt in $BOARD_PROMPT;
 #   both go into one query file, read verbatim by Hermes (no shell interpretation).
-# - One card at a time per remembering role: a lock per profile. A second card for the same role
+# - One card at a time per remembering role: a lock per profile (none for roles with memory off). A second card for the same role
 #   waits here, visibly, until the first run's Hermes process exits.
 # - --yolo: unattended workers can't answer approval prompts. Guardrails come from factory hooks.
 set -euo pipefail
@@ -18,10 +18,15 @@ query="$(mktemp)"
 trap 'rm -f "$query"' EXIT
 printf '%s\n\n---\n\n%s\n' "${BOARD_SYSTEM_PROMPT:-}" "${BOARD_PROMPT:-}" > "$query"
 
-exec 9>"$locks/$profile.lock"
-if ! flock -n 9; then
-  echo "factory: another card is already running as $profile; waiting for it to finish..."
-  flock 9
+# Roles without memory (the general marketer) run many cards at once, so they take no lock.
+if grep -Eq '^[[:space:]]*memory_enabled:[[:space:]]*false' "$HOME/.hermes/profiles/$profile/config.yaml" 2>/dev/null; then
+  echo "factory: $profile keeps no memory; no lock needed"
+else
+  exec 9>"$locks/$profile.lock"
+  if ! flock -n 9; then
+    echo "factory: another card is already running as $profile; waiting for it to finish..."
+    flock 9
+  fi
 fi
 echo "factory: running $profile (card ${BOARD_CARD_ID:-?}, run ${BOARD_RUN_ID:-?})"
 

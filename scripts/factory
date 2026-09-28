@@ -409,6 +409,181 @@ def board_setup(args):
         print("removed default Todo column")
 
 
+# --- product new ----------------------------------------------------------------------------------
+
+OWNER = "en3r0"
+PROJECTS = Path.home() / "Projects"
+STARTER = FACTORY / "templates" / "product"
+HARNESS_TEMPLATE = FACTORY / "config" / "herdr-board.toml"
+HERMES_ENV = Path.home() / ".hermes" / ".env"
+PROFILES = Path.home() / ".hermes" / "profiles"
+GLOBAL_ROLES = {"head"}  # factory-wide, never per product
+NOT_BOARD_HARNESS = {"critic"}  # opened by `factory critic`, not by board columns
+
+
+def is_agent():
+    """Same test as factory-guard: a board run or any Hermes session."""
+    return bool(os.environ.get("BOARD_RUN_ID") or os.environ.get("HERMES_HOME"))
+
+
+def hermes_env():
+    # Under the head, HERMES_HOME points at the head's own profile, which hides every other profile.
+    return {k: v for k, v in os.environ.items() if k != "HERMES_HOME"}
+
+
+def product_new(args):
+    name, dry = args.name, args.dry_run
+    agent = is_agent()
+    todo = []  # steps left for the operator
+    say = lambda msg: print(("[dry-run] " if dry else "") + msg)
+
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", name):
+        raise FactoryError("product name must be lowercase letters, digits and dashes (the GitHub repo name)")
+    slug = f"{OWNER}/{name}"
+    view = run(["gh", "repo", "view", slug, "--json", "isEmpty,visibility,defaultBranchRef"], check=False)
+    if view.returncode != 0:
+        raise FactoryError(f"github.com/{slug} does not exist. The operator creates it on GitHub first "
+                           "(the factory token cannot create repos), then runs this again.")
+    info = json.loads(view.stdout)
+    empty = info["isEmpty"]
+    public = info["visibility"] == "PUBLIC"
+
+    # 1. Local clone and hooks
+    repo = PROJECTS / name
+    if repo.exists():
+        origin = run(["git", "-C", str(repo), "remote", "get-url", "origin"], check=False).stdout.strip()
+        if not re.search(rf"github\.com[:/]{re.escape(slug)}(\.git)?$", origin):
+            raise FactoryError(f"{repo} exists but its origin is '{origin}', not {slug}")
+        say(f"repo: {repo} already cloned")
+    else:
+        say(f"repo: cloning {slug} to {repo}")
+        if not dry:
+            run(["gh", "repo", "clone", slug, str(repo)])
+    if not dry:
+        run(["git", "-C", str(repo), "config", "core.hooksPath", str(FACTORY / "githooks")])
+    say("hooks: core.hooksPath -> factory githooks (secret scan)")
+
+    # 2. Branches and starter files
+    if empty:
+        if agent:
+            todo.append(f"Empty repo: the operator runs `factory product new {name}` to push the starter "
+                        "files to main and create production (agents may not push to main).")
+        else:
+            say(f"starter: committing {', '.join(sorted(p.relative_to(STARTER).as_posix() for p in STARTER.rglob('*') if p.is_file()))}")
+            if not dry:
+                for src in STARTER.rglob("*"):
+                    if src.is_file():
+                        dst = repo / src.relative_to(STARTER)
+                        dst.parent.mkdir(parents=True, exist_ok=True)
+                        dst.write_text(src.read_text().replace("{product}", name))
+                run(["git", "-C", str(repo), "checkout", "-q", "-B", DEFAULT_BRANCH])
+                run(["git", "-C", str(repo), "add", "-A"])
+                run(["git", "-C", str(repo), "commit", "-q", "-m", f"Start {name} as a factory product"])
+                run(["git", "-C", str(repo), "push", "-q", "-u", "origin", DEFAULT_BRANCH])
+                run(["git", "-C", str(repo), "push", "-q", "origin", f"{DEFAULT_BRANCH}:production"])
+            say("branches: main and production pushed")
+    else:
+        default = (info.get("defaultBranchRef") or {}).get("name")
+        if default != DEFAULT_BRANCH:
+            raise FactoryError(f"{slug}'s default branch is '{default}'. The operator renames it to "
+                               f"'{DEFAULT_BRANCH}' on GitHub first (Settings > Branches), then runs this again.")
+        missing = [p.relative_to(STARTER).as_posix() for p in STARTER.rglob("*")
+                   if p.is_file() and not (repo / p.relative_to(STARTER)).exists()]
+        if missing and "AGENTS.md" not in missing:
+            todo.append(f"Optional starter files not in the repo yet: {', '.join(sorted(missing))} "
+                        f"(templates in {STARTER}).")
+        elif missing:
+            todo.append(f"Existing code: onboard it through a PR the operator reviews (as ClipHuman PR #1 did). "
+                        f"Missing starter files: {', '.join(sorted(missing))} (templates in {STARTER}). "
+                        "AGENTS.md needs judgment about the existing code, so no file is written automatically.")
+        if run(["git", "-C", str(repo), "ls-remote", "--exit-code", "origin", "production"], check=False).returncode != 0:
+            todo.append("Create `production` at the commit that is live now "
+                        f"(`git -C {repo} push origin <live sha>:production`), or at main if nothing is live.")
+        else:
+            say("branches: production exists")
+
+    # 3. products.txt
+    if repo.name in products():
+        say("products.txt: already listed")
+    else:
+        say(f"products.txt: adding {repo}")
+        if not dry:
+            with PRODUCTS_FILE.open("a") as f:
+                f.write(f"{repo}\n")
+
+    # 4. Board with every column
+    if dry:
+        say("board: create the project board and every column from boards.toml")
+    elif repo.exists():
+        if not any(b["scope_path"] == str(repo) for b in json.loads(run(["board", "board", "list", "--all", "--json"]).stdout)):
+            run(["board", "project", "create", str(repo), "--json"])
+        board_setup(argparse.Namespace(product=name, only=None))
+        say("board: all columns in place")
+
+    # 5. Hermes role profiles, each with the OpenRouter key
+    key_line = next((l for l in HERMES_ENV.read_text().splitlines() if l.startswith("OPENROUTER_API_KEY=")), None)
+    if not key_line:
+        raise FactoryError(f"no OPENROUTER_API_KEY in {HERMES_ENV}")
+    roles = sorted(p.name for p in (FACTORY / "roles").iterdir() if (p / "distribution.yaml").exists())
+    roles = [r for r in roles if r not in GLOBAL_ROLES]
+    for role in roles:
+        profile = f"{name}-{role}"
+        if (PROFILES / profile).exists():
+            say(f"profile: {profile} already installed")
+            continue
+        say(f"profile: installing {profile}")
+        if not dry:
+            p = subprocess.run(["hermes", "profile", "install", str(FACTORY / "roles" / role),
+                                "--name", profile, "-y"], capture_output=True, text=True, env=hermes_env())
+            if p.returncode != 0:
+                raise FactoryError(f"installing {profile} failed: {p.stderr.strip() or p.stdout.strip()}")
+            env = PROFILES / profile / ".env"
+            env.write_text(key_line + "\n")
+            env.chmod(0o600)
+
+    # 6. Board harnesses for the Hermes roles
+    text = HARNESS_TEMPLATE.read_text()
+    added = []
+    for role in roles:
+        if role in NOT_BOARD_HARNESS or f"[harness.hermes-{name}-{role}]" in text:
+            continue
+        added.append(role)
+        text += (f"\n[harness.hermes-{name}-{role}]\n"
+                 f"argv = [\"{Path.home()}/.local/bin/factory-hermes-run\", \"{name}-{role}\"]\n"
+                 "resume = false\n")
+    if added:
+        say(f"harnesses: adding hermes-{name}-{{{','.join(added)}}} (live within a minute, via the governor)")
+        if not dry:
+            HARNESS_TEMPLATE.write_text(text)
+    else:
+        say("harnesses: all present")
+
+    # 7. Protection
+    if public:
+        rules = run(["gh", "api", f"repos/{slug}/rulesets"], check=False)
+        if rules.returncode == 0 and json.loads(rules.stdout):
+            say("protection: ruleset present")
+        else:
+            todo.append(f"Public repo: add the `protect main` ruleset on github.com/{slug}/settings/rules "
+                        "(same as factory-sandbox: require PR, the CI check and the factory/review status, "
+                        "block force pushes and deletion).")
+    else:
+        say("protection: private repo, so guard-only (GitHub's free plan does not enforce rules here)")
+
+    if not dry and run(["git", "-C", str(FACTORY), "status", "--porcelain", "products.txt",
+                        "config/herdr-board.toml"]).stdout.strip():
+        todo.append("Commit products.txt and config/herdr-board.toml in the factory repo "
+                    + ("through a factory Docs PR." if agent else "and push."))
+    agents_md = repo / "AGENTS.md"
+    if (empty and not agent) or (agents_md.exists() and "TODO:" in agents_md.read_text()):
+        todo.append(f"Fill in every TODO in {agents_md} before the first plan.")
+    if agent:
+        todo.append("If you are the head: report these steps to the operator.")
+    print("\nLeft for the operator:" if todo else "\nNothing left to do.")
+    for i, t in enumerate(todo, 1):
+        print(f"{i}. {t}")
+
+
 # --- main -----------------------------------------------------------------------------------------
 
 def main():
@@ -447,6 +622,13 @@ def main():
     setup.add_argument("product")
     setup.add_argument("--only", help="comma-separated column names to create")
     setup.set_defaults(func=board_setup)
+
+    pr = sub.add_parser("product").add_subparsers(dest="product_cmd", required=True)
+    pn = pr.add_parser("new", help="set up a product: clone, hooks, board, role profiles, harnesses; "
+                                   "safe to re-run, it finishes whatever is missing")
+    pn.add_argument("name", help="GitHub repo name under en3r0 (create it on GitHub first)")
+    pn.add_argument("--dry-run", action="store_true", help="print what would be done, change nothing")
+    pn.set_defaults(func=product_new)
 
     args = ap.parse_args()
     try:

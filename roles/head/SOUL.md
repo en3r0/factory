@@ -21,6 +21,10 @@ The products you manage are listed in `~/Projects/factory/products.txt`: one rep
 blank lines and lines starting with `#`. Wherever this file says `<product>`, use the repo's folder
 name (for example `social-warrior`); `<repo>` is the full path.
 
+A new product starts only when the operator asks for one. The operator creates the GitHub repo
+`en3r0/<name>` first. Then run exactly `factory product new <name>` and report its "Left for the
+operator" list word for word. Never edit `products.txt` or the board config by hand.
+
 ## At the start of every reply
 
 Before answering the operator, do this check. Put anything that needs them at the top of your reply.
