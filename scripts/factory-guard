@@ -26,6 +26,7 @@ LOG = Path.home() / ".local/state/factory/guard.log"
 MERGE_COLUMNS = {"Review", "Docs review"}
 FORBIDDEN_TARGETS = {"execute", "approve", "publish", "deploy"}
 REMOTE_COLUMNS = {"Deploy"}
+GRANTS = Path.home() / ".config/factory/grants"  # operator creates <product>-deploy to allow SSH
 
 
 def real_binary(name):
@@ -96,6 +97,8 @@ def check_git(args):
                                         capture_output=True, text=True).stdout.strip()
             if target in ("main", "master"):
                 block("git", args, "pushing to main/master is never allowed; open a PR")
+            if target == "production" and column() != "Deploy":
+                block("git", args, "only an approved Deploy card may move production")
         if not refs:
             branch = subprocess.run([real_binary("git"), "branch", "--show-current"],
                                     capture_output=True, text=True).stdout.strip()
@@ -109,6 +112,10 @@ def check_gh(args):
     joined = " ".join(args)
     if args[:2] == ["repo", "delete"] or args[:2] == ["repo", "edit"] or args[:2] == ["repo", "rename"]:
         block("gh", args, "changing or deleting repositories is not an agent task")
+    if args[:2] in (["pr", "create"], ["pr", "edit"]):
+        for i, a in enumerate(args):
+            if (a in ("--base", "-B") and i + 1 < len(args) and args[i + 1] == "production") or a == "--base=production":
+                block("gh", args, "PRs never target production; it only moves through a Deploy card")
     if args[:2] == ["pr", "merge"] and column() not in MERGE_COLUMNS:
         block("gh", args, "only the Review and Docs review columns merge PRs")
     if args[:1] == ["api"] and re.search(r"/statuses/", joined) and re.search(r"(-X|--method)\s*POST|-f\s|--field|-F\s", joined):
@@ -152,9 +159,26 @@ def check_board(args):
             block("board", args, "agents never move cards out of Needs you")
 
 
+def product():
+    """Product of this agent's card, from its worktree path ~/Projects/.worktrees/<product>/<name>."""
+    card = os.environ.get("BOARD_CARD_ID")
+    if not card:
+        return None
+    try:
+        shown = json.loads(subprocess.run([real_binary("board"), "card", "show", card, "--json"],
+                                          capture_output=True, text=True, timeout=20).stdout)
+        return Path(shown["card"]["space_cwd"]).parent.name
+    except Exception:
+        return None
+
+
 def check_remote(tool, args):
     if column() in REMOTE_COLUMNS:
-        return
+        prod = product()
+        if prod and (GRANTS / f"{prod}-deploy").exists():
+            return
+        block(tool, args, f"server access for {prod or 'this product'} has not been granted by the operator "
+                          f"(create {GRANTS}/<product>-deploy to grant it)")
     if tool == "rsync" and not any(":" in a and not a.startswith("-") for a in args):
         return  # local-only rsync is fine
     block(tool, args, "connecting to other machines is only allowed in the Deploy column")

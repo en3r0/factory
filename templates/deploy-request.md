@@ -17,6 +17,9 @@
 
 Commit range: `<from-sha>..<to-sha>`
 
+Promote: `<to-sha>` on `main` → `production` (for products that use a `production` branch; see the
+product's `AGENTS.md`). `<from-sha>` is the current `production`.
+
 ## User-visible changes
 
 - <change>
