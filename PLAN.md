@@ -1,6 +1,6 @@
 # Factory agent operating plan
 
-Status: **approved 2026-09-26. Rollout step 1 done 2026-09-28; step 2 done 2026-09-28; step 3 done 2026-09-28 (end-to-end test on the public `factory-sandbox` repo passed: plan, critic, approval, Docs review, dispatch, Execute, Review, merge; Hermes runs as a visible board worker; one card at a time per remembering role; board daemon restarts safely). Step 4 next.** Review copy:
+Status: **approved 2026-09-26. Rollout step 1 done 2026-09-28; step 2 done 2026-09-28; step 4 done 2026-09-28 except items waiting on you (see Your setup checklist); step 3 done 2026-09-28 (end-to-end test on the public `factory-sandbox` repo passed: plan, critic, approval, Docs review, dispatch, Execute, Review, merge; Hermes runs as a visible board worker; one card at a time per remembering role; board daemon restarts safely). Step 4 next.** Review copy:
 https://claude.ai/code/artifact/724d764b-d891-4523-a0b8-da17bf091f91
 
 Hermes becomes the head agent on DeepSeek v4.1 Flash, herdr-board runs execution, Pi or Hermes does each task in visible Herdr panes you can step into, and you approve plans, posts and deploys.
@@ -176,7 +176,7 @@ herdr-board only has a static `max_concurrent` cap (default 3) and no live memor
 
 1. **High cap as a backstop only.** Set `max_concurrent` well above normal load (e.g. 12), so in practice there is no limit.
 2. **Governor script.** Every minute it checks available memory and load. Under pressure it creates `~/.local/state/factory/hold`, which makes `factory tick` stop dispatching new cards, and writes a line to `~/.local/state/factory/alerts.log`, which the head reports to you. When critical, it lowers `max_concurrent` and restarts the board daemon. The spike must confirm a daemon restart leaves running panes alone.
-3. **systemd slice for the Herdr server.** `MemoryHigh`/`MemoryMax` and `CPUWeight` mean a runaway build gets throttled or killed instead of freezing the head.
+3. **systemd slice for the Herdr server: skipped (decided 2026-09-28).** Herdr isn't started by systemd here, so a slice would change how you start Herdr. The governor and the no-heavy-builds rule cover it; revisit only if the box freezes again.
 4. **Resize the container** when the governor fires often. 8 cores and 24 GB should comfortably hold 8–10 concurrent Pi workers.
 5. **Offload heavy builds** to GitHub Actions CI or other boxes via Herdr `--machine`.
 
@@ -188,7 +188,9 @@ Agents merging their own work is safe only because CI, branch protection and hoo
 
 - **One worktree per card**, created by `factory card new` on branch `wt/<card>`. Workers never touch the main checkout.
 - **Branch protection on `main`:** require CI and the `factory/review` status, which only the Review and Docs review columns post. This is what makes agent merges safe: no agent merges or approves its own work. CI must run at least one check on every PR, including docs-only ones, and branches must not be required to be up to date with `main`. On GitHub's free plan these rules are only enforced on **public** repos (decided 2026-09-28: `factory` and `factory-sandbox` are public; ClipHuman stays private, and how its merges are protected, GitHub Pro or a local guard, is decided at step 5, with nothing merged into it before then).
-- **Yolo guardrails via hooks:** Pi runs in its permissive mode inside worktrees; hooks deny force-push to main, `ssh`/`scp` to prod hosts outside the Deploy column, committing or prompting with `.env`, and run `gitleaks` in pre-commit and CI.
+- **Yolo guardrails.** Pi and the Hermes column workers (`--yolo`, via `scripts/factory-hermes-run`) run without approval prompts, so rules are enforced outside the model: `scripts/factory-guard` stands in for `git`, `gh`, `board`, `ssh`, `scp`, `sftp` and `rsync` (first on `PATH`) and, for agents only, blocks force pushes, pushes to `main`, `--no-verify`, `--admin`/`--auto`, merges and status posts outside Review/Docs review, forbidden card moves, and remote connections outside Deploy; every block is logged to `~/.local/state/factory/guard.log`. Your own commands pass through. Each product repo also uses `githooks/pre-commit`, which blocks `.env` files and runs `gitleaks`. Server-side branch rules remain the primary protection.
+- **Learned skills.** Hermes roles may teach themselves skills. Once a month the head lists them (`skills list --source local`) and you decide, per skill, to promote it into the role template or delete it.
+- **Services.** The board daemon, `factory tick` and the governor run as systemd user services from `config/systemd/`. They need linger enabled (`sudo loginctl enable-linger en3r0`) to keep running when you're logged out and to start after a reboot.
 - **Proxmox snapshot** before enabling unattended runs, then nightly. That is the undo button for the whole box.
 - **Secrets:** `.env` per product plus a committed `.env.example`. The OpenRouter key lives in `~/.hermes/.env` and Pi's config, never in product repos.
 - **No heavy builds on this box.** The host went down on 2026-09-26 during setup, and rebooting it costs you time. Tools are installed from prebuilt, checksum-verified releases whenever one exists. Anything that must compile runs in GitHub Actions or on another machine, and large local builds need your OK first.
@@ -243,6 +245,8 @@ Things only you can do. The first list has no dependencies. The second waits for
 - [ ] Google Search Console: verify cliphuman.com and dustinmontgomery.com (DNS TXT record in Cloudflare).
 - [ ] Voice training material: links to or exports of your posts (X, LinkedIn), a few emails, and anything else you've written that sounds like you.
 - [ ] Book about an hour for the brand interview.
+- [ ] Enable linger so factory services survive logout and reboot: `sudo loginctl enable-linger en3r0`.
+- [ ] Add the same `protect main` ruleset to `en3r0/factory` (public), once you're happy for all factory changes to go through PRs.
 
 **Later, per project (ClipHuman first)**
 
