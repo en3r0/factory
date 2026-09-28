@@ -1,2 +1,3 @@
 # Products the head manages: one repo path per line. Added by `factory product new` (rollout step 6).
 /home/en3r0/Projects/factory-sandbox
+/home/en3r0/Projects/social-warrior

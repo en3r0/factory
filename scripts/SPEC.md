@@ -16,6 +16,13 @@ tests each point.
   `review: <PR url>`, in the PR branch's existing worktree (or a fresh one on that branch), directly in
   the **Docs review** column, and prints the card id.
 
+## factory ci <PR>
+
+- Waits for the GitHub Actions runs on the PR's head commit via the Actions API (works on private
+  repos with a fine-grained token; `gh pr checks` needs a checks permission those tokens lack).
+- Prints JSON; exit 0 all passed, 1 a run failed, 3 no CI within 5 minutes, 4 timeout.
+- Agents never re-run CI (the token has no Actions write).
+
 ## factory critic <product> <plan folder>
 
 - Opens the product's critic profile (`<product>-critic`) in a visible Herdr pane on that folder.

@@ -103,7 +103,7 @@ All of these must be true. If any is false, the card is not ready: fix the spec 
 
 ## Definition of Done (a task card may leave Review as Done)
 
-1. CI is green on the PR (`gh pr checks` all pass).
+1. CI is green on the PR (`factory ci <number>` exits 0).
 2. The reviewer re-ran every acceptance criterion and pasted the evidence into the review report.
 3. The diff matches the spec (and `WORKPLAN.md`, if present), with nothing out of scope.
 4. The review report is committed and the reviewer's `factory/review` status is `success`.

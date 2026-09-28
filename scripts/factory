@@ -267,6 +267,34 @@ def tick(args):
     cleanup(args)  # finished cards are tidied up immediately (operator's choice, 2026-09-28)
 
 
+# --- ci -------------------------------------------------------------------------------------------
+
+def ci(args):
+    """Wait for the GitHub Actions runs on a PR's head commit and report them. Uses the Actions API,
+    which works on private repos with a fine-grained token (gh pr checks does not).
+    Exit 0: at least one run and all passed. 1: a run failed. 3: no CI appeared. 4: timed out."""
+    pr = json.loads(run(["gh", "pr", "view", args.pr, "--json", "headRefOid,number,url"]).stdout)
+    sha = pr["headRefOid"]
+    start = time.time()
+    while True:
+        runs = json.loads(run(["gh", "run", "list", "--commit", sha, "--json",
+                               "databaseId,name,status,conclusion,event", "--limit", "50"]).stdout or "[]")
+        waited = time.time() - start
+        if not runs and waited > 300:
+            print(json.dumps({"pr": pr["url"], "commit": sha, "result": "no-ci"}))
+            sys.exit(3)
+        if runs and all(r["status"] == "completed" for r in runs):
+            ok = all(r["conclusion"] in ("success", "skipped", "neutral") for r in runs)
+            print(json.dumps({"pr": pr["url"], "commit": sha, "result": "passed" if ok else "failed",
+                              "runs": [{"name": r["name"], "conclusion": r["conclusion"],
+                                        "id": r["databaseId"]} for r in runs]}))
+            sys.exit(0 if ok else 1)
+        if waited > args.timeout * 60:
+            print(json.dumps({"pr": pr["url"], "commit": sha, "result": "timeout"}))
+            sys.exit(4)
+        time.sleep(20)
+
+
 # --- cleanup --------------------------------------------------------------------------------------
 
 def cleanup_log(msg):
@@ -402,6 +430,11 @@ def main():
     cr.add_argument("--wait", action="store_true", help="return only when critic.md ends with END")
     cr.add_argument("--timeout", type=int, default=20, help="minutes to wait (with --wait)")
     cr.set_defaults(func=critic)
+
+    c = sub.add_parser("ci", help="wait for a PR's CI (GitHub Actions) and report; exit 0 = all passed")
+    c.add_argument("pr", help="PR number or URL (run inside the repo)")
+    c.add_argument("--timeout", type=int, default=20, help="minutes")
+    c.set_defaults(func=ci)
 
     sub.add_parser("tick").set_defaults(func=tick)
 

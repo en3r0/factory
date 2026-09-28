@@ -41,12 +41,10 @@ first line (`KIND: <kind>`). If the kind is missing, not in the AGENTS.md table,
    as they are on the PR branch (`gh pr diff <number>` or `git show <headRefOid>:<path>` after
    `git fetch origin`). The approval must name the operator and a date. Missing: FAIL with
    `missing operator approval`.
-4. **CI.** `gh pr checks <number> --watch`. If it reports no checks, wait 30 seconds and retry, for up to
-   5 minutes. Still no checks: FAIL with `CI missing` (this is a setup problem the operator must
-   fix). Any red check: re-run it once (find it with
-   `gh run list --commit <headRefOid> --json databaseId,name,conclusion`, then
-   `gh run rerun <databaseId> --failed` and `gh pr checks <number> --watch`). Still red: FAIL with
-   the check name.
+4. **CI.** Run `factory ci <number>` (never `gh pr checks`, which fails on private repos). It waits and
+   prints JSON. Exit 0 (`passed`): continue. Exit 3 (`no-ci`): FAIL with `CI missing` (a setup
+   problem the operator must fix). Exit 1 (`failed`) or 4 (`timeout`): FAIL with the failing run's
+   name. Do not try to re-run CI.
 
 ## 3a. PASS: merge
 

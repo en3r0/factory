@@ -16,7 +16,7 @@
 
 ## CI
 
-<Output of `gh pr checks`, trimmed to the check names and states.>
+<Output of `factory ci <number>`: each run's name and conclusion.>
 
 ## Diff vs spec and WORKPLAN
 

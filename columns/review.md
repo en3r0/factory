@@ -44,14 +44,15 @@ Before anything else, read `~/Projects/factory/AGENTS.md`. Its rules apply to yo
 
 ## 2. Record CI on the executor's commit
 
-`gh pr checks --watch`. If it reports no checks, wait 30 seconds and try again, for up to 5 minutes.
-- Still no checks: escalate with `CI missing`, and say in Details whether `.github/workflows/` has a
-  workflow that runs on pull requests. Never PASS without CI.
-- A check is red: find its workflow, then check `main`:
+Run `factory ci <number>` (never `gh pr checks`, which fails on private repos). It waits and prints JSON.
+- Exit 0 (`passed`): continue.
+- Exit 3 (`no-ci`) or 4 (`timeout`): escalate with `CI missing` or `CI timeout`, and say in Details
+  whether `.github/workflows/` has a workflow that runs on pull requests. Never PASS without CI.
+- Exit 1 (`failed`): take the failing run's name from the JSON, then check `main`:
   `gh run list --branch main --workflow "<that workflow>" --status completed --limit 1 --json conclusion`.
   If that shows `failure`, escalate with `main CI broken`. Otherwise the red check is a blocker finding.
 
-Keep the check names and states for the report.
+Keep the run names and conclusions for the report.
 
 ## 3. Check the work
 
@@ -92,10 +93,9 @@ command, even if git suggests it. Do not edit or commit the report again after t
 
 ## 5a. PASS
 
-1. Wait for CI on your report commit: `gh pr checks --watch`. If a check is red, re-run it once: find
-   the run with `gh run list --commit $(git rev-parse HEAD) --json databaseId,name,conclusion`, then
-   `gh run rerun <databaseId> --failed` and `gh pr checks --watch`. If it is still red, escalate with
-   `CI failed on the review commit` (do not FAIL: a docs-only commit is not the executor's fault).
+1. Wait for CI on your report commit: `factory ci <number>`. If it does not exit 0, escalate with
+   `CI failed on the review commit` (do not FAIL: a docs-only commit is not the executor's fault). Do
+   not try to re-run CI.
 2. Mark the exact head commit:
    `gh api -X POST "repos/{owner}/{repo}/statuses/$(git rev-parse HEAD)" -f state=success -f context=factory/review -f description="Review passed"`
 3. Merge: `gh pr merge <number> --squash --match-head-commit $(git rev-parse HEAD)`. Never add
