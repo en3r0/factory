@@ -1,6 +1,6 @@
 # Factory agent operating plan
 
-Status: **approved 2026-09-26. Rollout step 1 done 2026-09-28; step 2 done 2026-09-28; step 4 done 2026-09-28 except items waiting on you (see Your setup checklist); step 3 done 2026-09-28 (end-to-end test on the public `factory-sandbox` repo passed: plan, critic, approval, Docs review, dispatch, Execute, Review, merge; Hermes runs as a visible board worker; one card at a time per remembering role; board daemon restarts safely). Step 4 next.** Review copy:
+Status: **approved 2026-09-26. Rollout steps 1–4 done 2026-09-28 (step 4 except items waiting on you, see Your setup checklist); step 5 done 2026-09-28: ClipHuman onboarded as product #1 (PR #1 merged: `AGENTS.md` distilled from `CLAUDE.md` and `docs/memory/`, `main` + `production` branches, guard-only protection since the repo stays private, board and critic installed, server deploys stay with you until the Todo deploy script exists). Step 6 next.** Review copy:
 https://claude.ai/code/artifact/724d764b-d891-4523-a0b8-da17bf091f91
 
 Hermes becomes the head agent on DeepSeek v4.1 Flash, herdr-board runs execution, Pi or Hermes does each task in visible Herdr panes you can step into, and you approve plans, posts and deploys.
@@ -20,7 +20,7 @@ These came from our Q&A and are treated as fixed unless you change them.
 | Concurrency | No fixed cap. React when box resources get critical. |
 | Machine | This LXC container `agent-box` on the Proxmox host (5 cores, 12 GB RAM, no Docker) is dedicated. Workers run yolo inside worktrees. |
 | Secrets | `.env` per project, gitignored. |
-| Repos | `~/Projects/<product>` ↔ `github.com/en3r0/<product>`, one repo per product. The ops repo is named `factory` and is private. |
+| Repos | `~/Projects/<product>` ↔ `github.com/en3r0/<product>`, one repo per product. The ops repo is named `factory` and is public (changed 2026-09-28 so GitHub enforces its rules); ClipHuman stays private. |
 | Marketing | All of it, for products and your personal brand. Skills chosen from a six-repo audit; roles that improve by remembering get their own Hermes profile. |
 | Visibility | Every agent must be visible in Herdr and easy to step into (hence Option D, herdr-board). |
 
