@@ -1,0 +1,324 @@
+#!/usr/bin/env python3
+"""factory: glue between the factory's git repos, herdr-board and Hermes.
+
+Subcommands (behavior is specified in scripts/SPEC.md):
+  factory card new <product> <path> [--role ROLE] [--model MODEL]
+  factory card new <product> <PR url> --review
+  factory critic <product> <plan folder>
+  factory tick
+  factory board setup <product> [--only COLUMN,...]
+
+<product> is a repo folder name listed in ~/Projects/factory/products.txt.
+"""
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+import tomllib
+from pathlib import Path
+
+FACTORY = Path(__file__).resolve().parent.parent
+PRODUCTS_FILE = FACTORY / "products.txt"
+BOARDS_TOML = FACTORY / "columns" / "boards.toml"
+STATE = Path.home() / ".local/state/factory"
+HOLD = STATE / "hold"
+WORKTREES = Path.home() / "Projects" / ".worktrees"
+DEFAULT_BRANCH = "main"
+
+
+class FactoryError(Exception):
+    pass
+
+
+def run(cmd, cwd=None, check=True):
+    p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    if check and p.returncode != 0:
+        raise FactoryError(f"{' '.join(cmd)} failed ({p.returncode}): {p.stderr.strip() or p.stdout.strip()}")
+    return p
+
+
+def board(repo, *args):
+    """Run a board command scoped to a product's board (never changes the persistent selection)."""
+    out = run(["board", "--board", str(repo), *args, "--json"]).stdout
+    return json.loads(out) if out.strip() else None
+
+
+def products():
+    """Map product name -> repo path from products.txt."""
+    result = {}
+    if PRODUCTS_FILE.exists():
+        for line in PRODUCTS_FILE.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                path = Path(line).expanduser()
+                result[path.name] = path
+    return result
+
+
+def product_repo(name):
+    repo = products().get(name)
+    if not repo:
+        raise FactoryError(f"unknown product '{name}': add its repo path to {PRODUCTS_FILE}")
+    return repo
+
+
+def columns_by_id(repo):
+    return {c["id"]: c["name"] for c in board(repo, "column", "list")}
+
+
+# --- card new -------------------------------------------------------------------------------------
+
+KIND_RULES = [
+    (re.compile(r"^plans/[^/]+/deploy-[^/]+\.md$"), "deploy"),
+    (re.compile(r"^plans/[^/]+/\d+-[^/]+\.md$"), "spec"),
+    (re.compile(r"^marketing/goals/[^/]+\.md$"), "goal"),
+    (re.compile(r"^marketing/briefs/[^/]+\.md$"), "brief"),
+]
+
+
+def kind_of(path):
+    for pattern, kind in KIND_RULES:
+        if pattern.match(path):
+            return kind
+    raise FactoryError(f"cannot tell the card kind from '{path}' (expected a task spec, deploy request, goal or brief)")
+
+
+def free_branch(repo, base):
+    """First of base, base-2, base-3... with no local or remote branch and no worktree folder."""
+    n = 1
+    while True:
+        name = base if n == 1 else f"{base}-{n}"
+        taken = run(["git", "-C", str(repo), "branch", "-a", "--list", f"wt/{name}", f"*/wt/{name}"]).stdout.strip()
+        if not taken and not (WORKTREES / repo.name / name).exists():
+            return name
+        n += 1
+
+
+def title_of(file_text, fallback):
+    for line in file_text.splitlines():
+        if line.startswith("# "):
+            return line[2:].strip()
+    return fallback
+
+
+def harness_for(product, role):
+    return "pi" if role in (None, "pi") else f"hermes-{product}-{role}"
+
+
+def card_new(args):
+    repo = product_repo(args.product)
+    run(["git", "-C", str(repo), "fetch", "origin"])
+    if args.review:
+        return card_new_review(args, repo)
+
+    path = args.path
+    kind = kind_of(path)
+    shown = run(["git", "-C", str(repo), "show", f"origin/{DEFAULT_BRANCH}:{path}"], check=False)
+    if shown.returncode != 0:
+        raise FactoryError(f"{path} is not on origin/{DEFAULT_BRANCH}; merge it first")
+    slug = Path(path).stem
+    name = free_branch(repo, slug)
+    wt = WORKTREES / repo.name / name
+    wt.parent.mkdir(parents=True, exist_ok=True)
+    run(["git", "-C", str(repo), "worktree", "add", str(wt), "-b", f"wt/{name}", f"origin/{DEFAULT_BRANCH}"])
+    cmd = ["card", "create", "--title", title_of(shown.stdout, slug),
+           "-d", f"{kind}: {path}\nworktree: {wt}\nbranch: wt/{name}",
+           "--column", "Backlog", "--harness", harness_for(args.product, args.role),
+           "--space-kind", "new-workspace", "--space-ref", f"{args.product}-{name}", "--space-cwd", str(wt)]
+    if args.model:
+        cmd += ["--model", args.model]
+    card = board(repo, *cmd)
+    print(json.dumps({"card": card["id"], "kind": kind, "worktree": str(wt), "branch": f"wt/{name}"}))
+
+
+def card_new_review(args, repo):
+    url = args.path
+    m = re.match(r"https://github\.com/[^/]+/[^/]+/pull/(\d+)$", url)
+    if not m:
+        raise FactoryError(f"'{url}' is not a GitHub pull request URL")
+    pr = json.loads(run(["gh", "pr", "view", url, "--json", "headRefName,state"], cwd=repo).stdout)
+    if pr["state"] != "OPEN":
+        raise FactoryError(f"PR is {pr['state']}, not OPEN")
+    branch = pr["headRefName"]
+    wt = None
+    for block in run(["git", "-C", str(repo), "worktree", "list", "--porcelain"]).stdout.split("\n\n"):
+        if f"branch refs/heads/{branch}" in block:
+            wt = block.splitlines()[0].split(" ", 1)[1]
+    if not wt:
+        wt = str(WORKTREES / repo.name / f"review-{m.group(1)}")
+        Path(wt).parent.mkdir(parents=True, exist_ok=True)
+        run(["git", "-C", str(repo), "worktree", "add", wt, f"origin/{branch}"])
+    card = board(repo, "card", "create", "--title", f"Docs review: PR #{m.group(1)}",
+                 "-d", f"review: {url}", "--column", "Docs review", "--harness", "pi",
+                 "--space-kind", "new-workspace", "--space-ref", f"{args.product}-review-{m.group(1)}",
+                 "--space-cwd", wt)
+    print(json.dumps({"card": card["id"], "kind": "review", "worktree": wt}))
+
+
+# --- critic ---------------------------------------------------------------------------------------
+
+CRITIC_QUERY = """Review the plan in {folder}: read epic.md and every task spec in that folder.
+Follow your SOUL. Write your findings to {folder}/critic.md as a numbered list, most serious first,
+and end the file with a final line containing only END. Do not edit any other file."""
+
+
+def critic(args):
+    product_repo(args.product)  # validates the product name
+    folder = Path(args.folder).expanduser().resolve()
+    if not (folder / "epic.md").exists():
+        raise FactoryError(f"{folder}/epic.md not found")
+    profile = f"{args.product}-critic"
+    if os.environ.get("HERDR_ENV") != "1":
+        raise FactoryError("factory critic must run inside a Herdr pane so the critic is visible")
+    split = json.loads(run(["herdr", "pane", "split", "--current", "--direction", "down",
+                            "--cwd", str(folder), "--no-focus"]).stdout)
+    pane = split["result"]["pane"]["pane_id"]
+    run(["herdr", "agent", "start", f"critic-{int(time.time()) % 100000}", "--kind", "hermes", "--pane", pane,
+         "--", "-p", profile, "chat", "-q", CRITIC_QUERY.format(folder=folder)])
+    print(json.dumps({"pane": pane, "profile": profile, "output": str(folder / "critic.md")}))
+
+
+# --- tick -----------------------------------------------------------------------------------------
+
+def notify(title, body):
+    run(["herdr", "notification", "show", title, "--body", body], check=False)
+
+
+def git_show(repo, path):
+    p = run(["git", "-C", str(repo), "show", f"origin/{DEFAULT_BRANCH}:{path}"], check=False)
+    return p.stdout if p.returncode == 0 else None
+
+
+def depends_on(spec_text):
+    m = re.search(r"\*\*Depends on:\*\*\s*(.+)", spec_text or "")
+    if not m or m.group(1).strip().lower().startswith("none"):
+        return []
+    return re.findall(r"\b(\d{2,})\b", m.group(1))
+
+
+def tick(args):
+    STATE.mkdir(parents=True, exist_ok=True)
+    seen_file = STATE / "tick-needs-you"
+    seen = set(seen_file.read_text().split()) if seen_file.exists() else set()
+    now_needs = set()
+    for name, repo in products().items():
+        try:
+            run(["git", "-C", str(repo), "fetch", "origin"], check=False)
+            cols = columns_by_id(repo)
+            cards = board(repo, "card", "list")
+        except FactoryError as e:
+            print(f"{name}: {e}", file=sys.stderr)
+            continue
+        by_spec = {}
+        for c in cards:
+            first = (c.get("description") or "").splitlines()[:1]
+            if first and first[0].startswith("spec: "):
+                by_spec[first[0][6:].strip()] = c
+        for c in cards:
+            col = cols.get(c["column_id"])
+            if col == "Needs you":
+                key = f"{name}:{c['id']}"
+                now_needs.add(key)
+                if key not in seen:
+                    notify("Factory: needs you", f"{name} card {c['id']}: {c['title']}")
+            if HOLD.exists() or col != "Backlog" or c["status"] != "idle":
+                continue
+            first = (c.get("description") or "").splitlines()[:1]
+            if not first or not first[0].startswith("spec: "):
+                continue  # only task specs are dispatched; never deploy/goal/brief/review cards
+            spec_path = first[0][6:].strip()
+            folder = str(Path(spec_path).parent)
+            epic = git_show(repo, f"{folder}/epic.md") or ""
+            if not re.search(r"Approved by operator:\*?\*?\s*yes", epic, re.IGNORECASE):
+                continue
+            ready = True
+            for dep in depends_on(git_show(repo, spec_path)):
+                matches = [card for path, card in by_spec.items()
+                           if str(Path(path).parent) == folder and Path(path).name.startswith(f"{dep}-")]
+                if not any(cols.get(m["column_id"]) == "Done" for m in matches):
+                    ready = False
+            if ready:
+                board(repo, "card", "move", str(c["id"]), "Execute")
+                print(f"{name}: dispatched card {c['id']} ({spec_path})")
+    seen_file.write_text("\n".join(sorted(now_needs)) + "\n")
+
+
+# --- board setup ----------------------------------------------------------------------------------
+
+def board_setup(args):
+    repo = product_repo(args.product)
+    spec = tomllib.loads(BOARDS_TOML.read_text())["column"]
+    wanted = [c for c in spec if not args.only or c["name"] in args.only.split(",")]
+    existing = {c["name"]: c for c in board(repo, "column", "list")}
+    for pos, c in enumerate(wanted):
+        if c["name"] in existing:
+            continue
+        cmd = ["column", "create", "--name", c["name"], "--trigger", c["trigger"], "--position", str(pos)]
+        if "prompt" in c:
+            cmd += ["--prompt", (FACTORY / "columns" / c["prompt"]).read_text()]
+        if "harness" in c:
+            cmd += ["--harness", c["harness"].replace("{project}", args.product)]
+        if "timeout" in c:
+            cmd += ["--timeout", str(c["timeout"])]
+        if c.get("session") == "fresh":
+            cmd += ["--fresh-session"]
+        elif c.get("session") == "reuse":
+            cmd += ["--reuse-session"]
+        board(repo, *cmd)
+        print(f"created column {c['name']}")
+    names = {c["name"] for c in board(repo, "column", "list")}
+    for c in wanted:
+        cmd = ["column", "edit", c["name"]]
+        for key in ("on_success", "on_fail"):
+            if key in c and c[key] in names:
+                cmd += [f"--{key.replace('_', '-')}", c[key]]
+        if len(cmd) > 3:
+            board(repo, *cmd)
+    if "Todo" in names and "Todo" not in {c["name"] for c in spec}:
+        todo = [c for c in board(repo, "column", "list") if c["name"] == "Todo"][0]
+        board(repo, "column", "delete", str(todo["id"]), "--move-cards-to", "Backlog", "--yes")
+        print("removed default Todo column")
+
+
+# --- main -----------------------------------------------------------------------------------------
+
+def main():
+    ap = argparse.ArgumentParser(prog="factory")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    card = sub.add_parser("card").add_subparsers(dest="card_cmd", required=True)
+    new = card.add_parser("new")
+    new.add_argument("product")
+    new.add_argument("path", help="spec/deploy/goal/brief path, or a PR url with --review")
+    new.add_argument("--role")
+    new.add_argument("--model")
+    new.add_argument("--review", action="store_true")
+    new.set_defaults(func=card_new)
+
+    cr = sub.add_parser("critic")
+    cr.add_argument("product")
+    cr.add_argument("folder")
+    cr.set_defaults(func=critic)
+
+    sub.add_parser("tick").set_defaults(func=tick)
+
+    bd = sub.add_parser("board").add_subparsers(dest="board_cmd", required=True)
+    setup = bd.add_parser("setup")
+    setup.add_argument("product")
+    setup.add_argument("--only", help="comma-separated column names to create")
+    setup.set_defaults(func=board_setup)
+
+    args = ap.parse_args()
+    try:
+        args.func(args)
+    except FactoryError as e:
+        print(f"factory: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
