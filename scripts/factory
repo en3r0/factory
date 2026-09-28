@@ -177,8 +177,10 @@ def critic(args):
     split = json.loads(run(["herdr", "pane", "split", "--current", "--direction", "down",
                             "--cwd", str(folder), "--no-focus"]).stdout)
     pane = split["result"]["pane"]["pane_id"]
+    # herdr agent start refuses arguments containing newlines, so the query goes on one line.
+    query = " ".join(CRITIC_QUERY.format(folder=folder).split())
     run(["herdr", "agent", "start", f"critic-{int(time.time()) % 100000}", "--kind", "hermes", "--pane", pane,
-         "--", "-p", profile, "chat", "-q", CRITIC_QUERY.format(folder=folder)])
+         "--", "-p", profile, "chat", "-q", query])
     print(json.dumps({"pane": pane, "profile": profile, "output": str(folder / "critic.md")}))
 
 
