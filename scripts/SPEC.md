@@ -30,8 +30,9 @@ tests each point.
 
 ## factory product new <name> [--dry-run]
 
-- The operator creates `github.com/en3r0/<name>` first; the command stops if it does not exist (the
-  factory token cannot create repos).
+- The operator creates `github.com/en3r0/<name>` first and adds it to the fine-grained GitHub token's
+  repository access; the command stops if the repo does not exist (the token cannot create repos) and
+  explains the token step if a push is refused.
 - Safe to re-run: each step checks what exists and does only what is missing. Steps: clone to
   `~/Projects/<name>` (or check an existing clone's origin), set `core.hooksPath` to the factory
   githooks, add the repo to `products.txt`, create the board and every column from `boards.toml`,

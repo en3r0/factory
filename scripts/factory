@@ -478,8 +478,15 @@ def product_new(args):
                         dst.write_text(src.read_text().replace("{product}", name))
                 run(["git", "-C", str(repo), "checkout", "-q", "-B", DEFAULT_BRANCH])
                 run(["git", "-C", str(repo), "add", "-A"])
-                run(["git", "-C", str(repo), "commit", "-q", "-m", f"Start {name} as a factory product"])
-                run(["git", "-C", str(repo), "push", "-q", "-u", "origin", DEFAULT_BRANCH])
+                if run(["git", "-C", str(repo), "status", "--porcelain"]).stdout.strip():
+                    run(["git", "-C", str(repo), "commit", "-q", "-m", f"Start {name} as a factory product"])
+                push = run(["git", "-C", str(repo), "push", "-q", "-u", "origin", DEFAULT_BRANCH], check=False)
+                if push.returncode != 0:
+                    raise FactoryError(
+                        f"push to {slug} refused: {push.stderr.strip()}\n"
+                        f"The fine-grained GitHub token covers only the repos you picked. Add {slug} to it "
+                        "(github.com/settings/personal-access-tokens: Repository access), with the same "
+                        "permissions as the other products, then run this again.")
                 run(["git", "-C", str(repo), "push", "-q", "origin", f"{DEFAULT_BRANCH}:production"])
             say("branches: main and production pushed")
     else:
