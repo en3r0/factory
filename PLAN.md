@@ -1,6 +1,6 @@
 # Factory agent operating plan
 
-Status: **approved 2026-09-26. Rollout steps 1–4 done 2026-09-28 (step 4 except items waiting on you, see Your setup checklist); step 5 done 2026-09-28: ClipHuman onboarded as product #1 (PR #1 merged: `AGENTS.md` distilled from `CLAUDE.md` and `docs/memory/`, `main` + `production` branches, guard-only protection since the repo stays private, board and critic installed, server deploys stay with you until the Todo deploy script exists). Step 6 next.** Review copy:
+Status: **approved 2026-09-26. Rollout steps 1–4 done 2026-09-28 (step 4 except items waiting on you, see Your setup checklist); step 5 done 2026-09-28: ClipHuman onboarded as product #1 (PR #1 merged: `AGENTS.md` distilled from `CLAUDE.md` and `docs/memory/`, `main` + `production` branches, guard-only protection since the repo stays private, board and critic installed, server deploys stay with you until the Todo deploy script exists); step 6 done 2026-09-28: `factory product new` tested end to end on a throwaway repo. Step 7 next.** Review copy:
 https://claude.ai/code/artifact/724d764b-d891-4523-a0b8-da17bf091f91
 
 Hermes becomes the head agent on DeepSeek v4.1 Flash, herdr-board runs execution, Pi or Hermes does each task in visible Herdr panes you can step into, and you approve plans, posts and deploys.
@@ -270,7 +270,7 @@ Work that needs strong judgment goes first, while Claude is still available. The
 | 3 | Build `factory card new` (worktree wrapper), `factory critic` and `factory tick` (the dispatcher), then run one tiny real card end to end: plan, critic, your approval, Execute, Review, PR merged. Confirm a daemon restart leaves running panes alone, Hermes runs as a visible herdr-board harness you can step into, and a remembering role can be limited to one run at a time. | Yes |
 | 4 | Guardrail hooks, `board move` guard, governor, branch protection. | Partly |
 | 5 | Distill Social Warrior's memory into `AGENTS.md` and onboard it as product #1. | Yes |
-| 6 | `factory product new` bootstrap. | No |
+| 6 | `factory product new` bootstrap. Done 2026-09-28: you create the GitHub repo and add it to the token; the command (you or the head) does the rest and lists what is left for you. `factory tick` now also keeps the factory checkout and every board's column prompts current. | No |
 | 7 | Build the posting tool as an early factory epic. Install the chosen marketing skills (see `research/marketing-skills-audit.md`), interview you to write `personal-brand.md` and your voice sample, set up the marketing columns and the Google Search Console service account. | Partly: the voice sample and brand file benefit from Claude |
 | 8 | Loosen gates as trust builds. | Ongoing |
 
