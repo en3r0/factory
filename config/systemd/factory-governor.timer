@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the factory governor every minute
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=1min
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

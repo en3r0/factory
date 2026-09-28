@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+"""factory-governor: resource and budget brake. Runs every minute from a systemd user timer.
+
+Resources (this box: 5 cores, 12 GB):
+  pressure  = MemAvailable < 15% or 5-min load > 7   -> create the hold file (factory tick stops dispatching)
+  critical  = MemAvailable < 8%  or 5-min load > 10  -> also cap the board at 2 concurrent runs
+  healthy   = MemAvailable > 25% and 5-min load < 5, three checks in a row -> lift hold and cap
+Budget:
+  monthly spend = OpenRouter total_usage minus its value at the start of the month
+  alerts once each at 50%, 80%, 100% of FACTORY_MONTHLY_BUDGET (default $20), and when prepaid
+  credit left drops below $2
+Alerts go to ~/.local/state/factory/alerts.log (the head reports them) and a Herdr notification.
+The live board config (~/.config/herdr-board/config.toml) is generated from the repo template
+config/herdr-board.toml with the current max_concurrent.
+
+Test knobs: FACTORY_GOV_MEM_PCT, FACTORY_GOV_LOAD5 override the measurements; --dry-run prints only.
+"""
+
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+import urllib.request
+from pathlib import Path
+
+FACTORY = Path(__file__).resolve().parent.parent
+TEMPLATE = FACTORY / "config" / "herdr-board.toml"
+LIVE = Path.home() / ".config/herdr-board/config.toml"
+STATE = Path.home() / ".local/state/factory"
+HOLD = STATE / "hold"
+ALERTS = STATE / "alerts.log"
+GOV = STATE / "governor.json"
+NORMAL_MAX, CRITICAL_MAX = 12, 2
+BUDGET = float(os.environ.get("FACTORY_MONTHLY_BUDGET", "20"))
+DRY = "--dry-run" in sys.argv
+
+
+def alert(msg):
+    line = f"{time.strftime('%Y-%m-%d %H:%M')} {msg}"
+    print(line)
+    if DRY:
+        return
+    STATE.mkdir(parents=True, exist_ok=True)
+    with ALERTS.open("a") as f:
+        f.write(line + "\n")
+    subprocess.run(["herdr", "notification", "show", "Factory governor", "--body", msg],
+                   capture_output=True)
+
+
+def measure():
+    mem = os.environ.get("FACTORY_GOV_MEM_PCT")
+    load = os.environ.get("FACTORY_GOV_LOAD5")
+    if mem is None:
+        info = dict(re.findall(r"^(\w+):\s+(\d+)", Path("/proc/meminfo").read_text(), re.M))
+        mem = 100 * int(info["MemAvailable"]) / int(info["MemTotal"])
+    if load is None:
+        load = os.getloadavg()[1]
+    return float(mem), float(load)
+
+
+def set_max_concurrent(n, state, force=False):
+    if not force and state.get("max_concurrent") == n and LIVE.exists() and not LIVE.is_symlink():
+        return
+    text = re.sub(r"(?m)^max_concurrent\s*=.*$", f"max_concurrent = {n}", TEMPLATE.read_text())
+    if DRY:
+        print(f"[dry-run] would set max_concurrent = {n} and restart factory-board")
+        return
+    if LIVE.is_symlink():
+        LIVE.unlink()
+    LIVE.write_text(text)
+    subprocess.run(["systemctl", "--user", "restart", "factory-board.service"], capture_output=True)
+    state["max_concurrent"] = n
+
+
+def resources(state):
+    mem, load = measure()
+    critical = mem < 8 or load > 10
+    pressure = critical or mem < 15 or load > 7
+    healthy = mem > 25 and load < 5
+    state["healthy_streak"] = state.get("healthy_streak", 0) + 1 if healthy else 0
+    if pressure:
+        if not HOLD.exists():
+            if not DRY:
+                HOLD.write_text(f"{time.strftime('%Y-%m-%d %H:%M')} mem {mem:.0f}% load {load:.1f}\n")
+            alert(f"HOLD: box under pressure (memory free {mem:.0f}%, load {load:.1f}); no new cards will be dispatched")
+        if critical and state.get("max_concurrent", NORMAL_MAX) != CRITICAL_MAX:
+            set_max_concurrent(CRITICAL_MAX, state)
+            alert(f"CRITICAL: memory free {mem:.0f}%, load {load:.1f}; board capped at {CRITICAL_MAX} concurrent runs")
+    elif HOLD.exists() and state["healthy_streak"] >= 3:
+        if not DRY:
+            HOLD.unlink()
+        if state.get("max_concurrent", NORMAL_MAX) != NORMAL_MAX:
+            set_max_concurrent(NORMAL_MAX, state)
+        alert(f"RESUMED: box healthy again (memory free {mem:.0f}%, load {load:.1f}); dispatching resumes")
+    elif not HOLD.exists() and state.get("max_concurrent") is None:
+        set_max_concurrent(NORMAL_MAX, state)
+
+
+def openrouter_key():
+    for line in (Path.home() / ".hermes/.env").read_text().splitlines():
+        if line.startswith("OPENROUTER_API_KEY="):
+            return line.split("=", 1)[1].strip().strip('"')
+    return None
+
+
+def budget(state):
+    key = openrouter_key()
+    if not key:
+        return
+    try:
+        req = urllib.request.Request("https://openrouter.ai/api/v1/credits",
+                                     headers={"Authorization": f"Bearer {key}"})
+        data = json.load(urllib.request.urlopen(req, timeout=15))["data"]
+    except Exception as e:
+        print(f"budget check skipped: {e}", file=sys.stderr)
+        return
+    usage, credits = float(data["total_usage"]), float(data["total_credits"])
+    month = time.strftime("%Y-%m")
+    b = state.setdefault("budget", {})
+    if b.get("month") != month:
+        b.update({"month": month, "start_usage": usage, "alerted": []})
+    spent = usage - b["start_usage"]
+    for pct in (50, 80, 100):
+        if spent >= BUDGET * pct / 100 and pct not in b["alerted"]:
+            b["alerted"].append(pct)
+            alert(f"BUDGET: {pct}% of the ${BUDGET:.0f} monthly budget used (${spent:.2f} this month). You decide what to cut.")
+    left = credits - usage
+    low = left < 2
+    if low and not b.get("low_credit_alerted"):
+        b["low_credit_alerted"] = True
+        alert(f"CREDIT: only ${left:.2f} of prepaid OpenRouter credit left. Top up to keep agents running.")
+    elif not low:
+        b["low_credit_alerted"] = False
+    state["last_spend"] = round(spent, 4)
+
+
+def main():
+    STATE.mkdir(parents=True, exist_ok=True)
+    state = json.loads(GOV.read_text()) if GOV.exists() else {}
+    if LIVE.exists() and not LIVE.is_symlink() and TEMPLATE.stat().st_mtime > LIVE.stat().st_mtime:
+        set_max_concurrent(state.get("max_concurrent", NORMAL_MAX), state, force=True)
+        print("template changed: live board config regenerated")
+    resources(state)
+    budget(state)
+    if not DRY:
+        GOV.write_text(json.dumps(state, indent=2) + "\n")
+    else:
+        print(json.dumps(state))
+
+
+if __name__ == "__main__":
+    main()

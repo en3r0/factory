@@ -179,9 +179,24 @@ def critic(args):
     pane = split["result"]["pane"]["pane_id"]
     # herdr agent start refuses arguments containing newlines, so the query goes on one line.
     query = " ".join(CRITIC_QUERY.format(folder=folder).split())
+    out = folder / "critic.md"
+    if out.exists():
+        out.unlink()  # a stale file ending in END would look finished
     run(["herdr", "agent", "start", f"critic-{int(time.time()) % 100000}", "--kind", "hermes", "--pane", pane,
          "--", "-p", profile, "chat", "-q", query])
-    print(json.dumps({"pane": pane, "profile": profile, "output": str(folder / "critic.md")}))
+    result = {"pane": pane, "profile": profile, "output": str(out)}
+    if args.wait:
+        deadline = time.time() + args.timeout * 60
+        while time.time() < deadline:
+            if out.exists() and out.read_text().rstrip().splitlines()[-1:] == ["END"]:
+                result["status"] = "done"
+                break
+            time.sleep(20)
+        else:
+            result["status"] = "timeout"
+            print(json.dumps(result))
+            raise FactoryError(f"critic did not finish within {args.timeout} minutes; see pane {pane}")
+    print(json.dumps(result))
 
 
 # --- tick -----------------------------------------------------------------------------------------
@@ -308,6 +323,8 @@ def main():
     cr = sub.add_parser("critic")
     cr.add_argument("product")
     cr.add_argument("folder")
+    cr.add_argument("--wait", action="store_true", help="return only when critic.md ends with END")
+    cr.add_argument("--timeout", type=int, default=20, help="minutes to wait (with --wait)")
     cr.set_defaults(func=critic)
 
     sub.add_parser("tick").set_defaults(func=tick)

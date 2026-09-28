@@ -71,13 +71,11 @@ Do not skip one because the goal looks small.
    exceeds that. Set Status to `draft`.
 4. **Task specs.** For each task, fill `~/Projects/factory/templates/task.md` into
    `plans/<epic-slug>/<NN>-<task-slug>.md`. Check each against Definition of Ready items 1, 2, 3 and 5.
-5. **Critic.** First delete any old `<workspace>/plans/<epic-slug>/critic.md`. Then run
-   `factory critic <product> <workspace>/plans/<epic-slug>`. It opens the product's critic in a visible
-   pane, which reviews the epic and every spec, writes its findings to
-   `<workspace>/plans/<epic-slug>/critic.md`, and ends that file with a line containing only `END`.
-   - Check with `tail -n 1 <workspace>/plans/<epic-slug>/critic.md`, then `sleep 60`, up to 15 times.
-     The findings are complete only when the last line is `END`. If it never appears, tell the operator
-     the critic failed and stop.
+5. **Critic.** Run exactly `factory critic <product> <workspace>/plans/<epic-slug> --wait`. It opens the
+   product's critic in a visible pane, which reviews the epic and every spec and writes its findings to
+   `<workspace>/plans/<epic-slug>/critic.md`. The command returns only when the findings are complete
+   (JSON with `"status": "done"`), or fails after 20 minutes. Do not write your own loop to wait for it.
+   If it fails, tell the operator the critic failed and stop.
    - **Never write critic findings yourself.**
    - Copy the findings into the epic's "Critic review" section and resolve each one: change the epic or
      spec, accept the risk (say why), or reject it (say why). Set Status to `critiqued`.
