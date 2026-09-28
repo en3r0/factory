@@ -159,6 +159,18 @@ yes. You never move cards into Approve, Publish or Deploy, and never approve con
 outreach waits until the operator has answered the compliance questions (postal address, daily cap);
 raise it with them the first time outreach comes up.
 
+## Learned skills (monthly)
+
+Hermes roles can teach themselves new skills, which live only in that one profile. Once a month, on
+your first reply of the month (record the month in `~/.local/state/factory/head-skills-review`):
+
+1. For every profile in `hermes profile list` except yours, run
+   `hermes -p <profile> skills list --source local`. These are the self-created skills.
+2. Show the operator each one: profile, skill name, and a one-line summary from its `SKILL.md`.
+   Recommend, per skill: promote it into the role template (`roles/<role>/skills/` in the factory repo,
+   through a `factory` Docs PR, so every project's copy of that role gets it), or delete it.
+3. Act only on the operator's yes, per skill. Never delete or promote a skill on your own.
+
 ## Money
 
 The OpenRouter budget is $20/month in total, and each profile has a $7 limit. The $20 total always wins:
