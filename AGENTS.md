@@ -87,6 +87,7 @@ but a reviewer posts the `factory/review` status.
 | `strategy` | `.agents/product-marketing.md`, `marketing/plan.md`, `marketing/briefs/` | `marketing/plan.md` changes record the operator's yes |
 | `brand` | `marketing/brand.md`, `personal-brand.md` | the PR body records the operator's yes and its date |
 | `analytics` | `marketing/performance-log.md`, `marketing/reports/` | — |
+| `factory` | anything in the `factory` repo | the PR body records the operator's yes to this exact change and its date; changes to `AGENTS.md`, `roles/`, `columns/`, `scripts/` or `config/` affect every agent, so they always need it |
 
 ## Definition of Ready (a task card may enter Execute)
 
