@@ -1,0 +1,12 @@
+name: community
+version: 0.1.0
+description: "Per-project community: listens and drafts reply batches for approval."
+author: "factory"
+# Installed per project with a prefixed name, e.g.
+#   hermes profile install ~/Projects/factory/roles/community --name cliphuman-community
+# (the head is factory-wide and keeps the name "head"). Refresh with `hermes profile update`,
+# which keeps memories, sessions, .env and the installed config.yaml.
+env_requires:
+  - name: OPENROUTER_API_KEY
+    description: "This profile's own OpenRouter key, with a $7/month credit limit"
+    required: true

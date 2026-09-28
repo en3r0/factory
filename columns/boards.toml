@@ -1,0 +1,149 @@
+# Column pipeline for every product: one board per product, holding both engineering and marketing
+# cards. `factory product new` (rollout step 6) creates these columns with `board column create`,
+# reading each `prompt` file from this directory.
+#
+# Placeholders, filled in per product:
+#   {project}  the product's short name, e.g. "cliphuman"
+# Harness names like "hermes-{project}-researcher" are config-defined harnesses in
+# ~/.config/herdr-board/config.toml, one per Hermes role profile (verified in rollout step 3).
+# A column without `harness` uses the card's harness, so the card decides which role runs.
+#
+# timeout is in minutes. session = "fresh" starts a new agent conversation for every run;
+# "reuse" continues the card's previous conversation (the executor keeps its context between
+# review rounds).
+
+[[column]]
+name = "Backlog"
+trigger = "manual"
+# Engineering cards wait here until `factory tick` dispatches them (epic approved, dependencies Done). Marketing cards wait here until the strategist releases them into a work column on schedule.
+
+# --- Engineering ------------------------------------------------------------------------------
+
+[[column]]
+name = "Execute"
+trigger = "auto"
+prompt = "execute.md"
+harness = "pi"
+session = "reuse"
+timeout = 120
+on_success = "Review"
+on_fail = "Needs you"
+
+[[column]]
+name = "Review"
+trigger = "auto"
+prompt = "review.md"
+harness = "pi"
+session = "fresh"
+timeout = 60
+on_success = "Done"
+on_fail = "Execute"   # execute.md escalates to Needs you after the third failed review
+
+# --- Marketing --------------------------------------------------------------------------------
+
+[[column]]
+name = "Research"
+trigger = "auto"
+prompt = "research.md"
+harness = "hermes-{project}-researcher"
+session = "fresh"
+timeout = 60
+on_success = "Docs review"
+on_fail = "Needs you"
+
+[[column]]
+name = "SEO"
+trigger = "auto"
+prompt = "seo.md"
+harness = "hermes-{project}-seo"
+session = "fresh"
+timeout = 45
+on_success = "Docs review"
+on_fail = "Needs you"
+
+[[column]]
+name = "Draft"
+trigger = "auto"
+prompt = "draft.md"
+# no harness: the card picks content creator, community, or the general worker
+session = "reuse"
+timeout = 30
+on_success = "Edit"
+on_fail = "Needs you"
+
+[[column]]
+name = "Video"
+trigger = "auto"
+prompt = "video.md"
+harness = "hermes-{project}-marketer"
+session = "reuse"
+timeout = 60
+on_success = "Edit"
+on_fail = "Needs you"
+
+[[column]]
+name = "Edit"
+trigger = "auto"
+prompt = "edit.md"
+harness = "hermes-{project}-marketer"
+session = "fresh"
+timeout = 30
+on_success = "Approve"
+on_fail = "Draft"     # draft.md escalates to Needs you after the third failed edit
+
+[[column]]
+name = "Outreach"
+trigger = "auto"
+prompt = "outreach.md"
+harness = "hermes-{project}-outreach"
+session = "fresh"
+timeout = 45
+on_success = "Approve"
+on_fail = "Needs you"
+
+[[column]]
+name = "Docs review"
+trigger = "auto"
+prompt = "docs-review.md"
+harness = "pi"
+session = "fresh"
+timeout = 30
+on_success = "Done"
+on_fail = "Needs you"
+# The independent check on every non-code PR. Cards arrive from Research and SEO, from
+# `factory card new --review` (plans, goals, deploy requests, strategy, brand, analytics files), and
+# from the publishing script after it posts or sends an approved item.
+
+# --- Operator gates ---------------------------------------------------------------------------
+
+[[column]]
+name = "Approve"
+trigger = "manual"
+# The operator reads the draft or batch. Approve: move to Publish. Reject: comment why, move to Draft.
+
+[[column]]
+name = "Publish"
+trigger = "manual"
+# No agent runs here. The publishing script posts (or sends) cards in this column at their publish_at
+# time, then moves them to Docs review, which merges the published draft or batch. Until the posting
+# tool exists (rollout step 7), the operator posts by hand and then moves the card to Docs review.
+
+[[column]]
+name = "Deploy"
+trigger = "auto"      # the gate is who moves the card: only the operator (enforced by the move guard hook)
+prompt = "deploy.md"
+harness = "pi"
+session = "fresh"
+timeout = 30
+on_success = "Done"
+on_fail = "Needs you"
+
+# --- Shared -----------------------------------------------------------------------------------
+
+[[column]]
+name = "Needs you"
+trigger = "manual"
+
+[[column]]
+name = "Done"
+trigger = "manual"

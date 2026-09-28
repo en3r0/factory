@@ -1,0 +1,1 @@
+# Products the head manages: one repo path per line. Added by `factory product new` (rollout step 6).

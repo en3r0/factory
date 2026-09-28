@@ -1,0 +1,9 @@
+# Never commit secrets or Hermes runtime data that may land in role folders during testing
+.env
+auth.json
+memories/
+sessions/
+logs/
+state.db*
+*.log
+WORKPLAN.md

@@ -1,0 +1,12 @@
+# Shipped defaults. `hermes profile update` keeps an installed profile's own config.yaml,
+# so per-install tuning (e.g. a different model) survives updates.
+model:
+  # Deliberately a different model family from the DeepSeek head and workers, so the critic has
+  # different blind spots. Chosen 2026-09-28: GLM 5.3 Flash, Intelligence Index 42 vs DeepSeek v4.1
+  # Flash 39, and fewer made-up facts (Artificial Analysis).
+  default: "z-ai/glm-5.3-flash"
+  provider: "openrouter"
+
+memory:
+  memory_enabled: true
+  user_profile_enabled: true

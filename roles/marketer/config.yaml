@@ -1,0 +1,10 @@
+# Shipped defaults. `hermes profile update` keeps an installed profile's own config.yaml,
+# so per-install tuning (e.g. a different model) survives updates.
+model:
+  default: "deepseek/deepseek-v4.1-flash"
+  provider: "openrouter"
+
+memory:
+  # Many copies run at once; shared memory would get corrupted.
+  memory_enabled: false
+  user_profile_enabled: false
