@@ -262,6 +262,80 @@ def tick(args):
                 board(repo, "card", "move", str(c["id"]), "Execute")
                 print(f"{name}: dispatched card {c['id']} ({spec_path})")
     seen_file.write_text("\n".join(sorted(now_needs)) + "\n")
+    cleanup(args)  # finished cards are tidied up immediately (operator's choice, 2026-09-28)
+
+
+# --- cleanup --------------------------------------------------------------------------------------
+
+def cleanup_log(msg):
+    STATE.mkdir(parents=True, exist_ok=True)
+    with (STATE / "cleanup.log").open("a") as f:
+        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}\n")
+    print(msg)
+
+
+def card_fields(card):
+    """Parse the description lines factory card new writes: kind, worktree, branch, review url."""
+    fields = {}
+    for line in (card.get("description") or "").splitlines():
+        key, _, value = line.partition(": ")
+        if key in ("spec", "brief", "goal", "deploy", "review", "worktree", "branch") and value:
+            fields[key] = value.strip()
+    return fields
+
+
+def pr_state(repo, fields):
+    if "review" in fields:
+        ref = fields["review"]
+    elif "branch" in fields:
+        prs = json.loads(run(["gh", "pr", "list", "--head", fields["branch"], "--state", "all",
+                              "--json", "url,state", "--limit", "1"], cwd=repo).stdout or "[]")
+        if not prs:
+            return None
+        ref = prs[0]["url"]
+    else:
+        return None
+    return json.loads(run(["gh", "pr", "view", ref, "--json", "state,headRefName"], cwd=repo).stdout)
+
+
+def cleanup_product(name, repo, dry_run=False):
+    cols = columns_by_id(repo)
+    workspaces = {w.get("label"): w["workspace_id"]
+                  for w in json.loads(run(["herdr", "workspace", "list"]).stdout)["result"]["workspaces"]}
+    for c in board(repo, "card", "list"):
+        if cols.get(c["column_id"]) != "Done" or c["status"] != "idle" or c.get("archived_at"):
+            continue
+        fields = card_fields(c)
+        pr = pr_state(repo, fields)
+        if not pr or pr["state"] not in ("MERGED", "CLOSED"):
+            continue  # only tidy up work whose PR is finished
+        label = f"card {c['id']} ({c['title'][:50]})"
+        if dry_run:
+            cleanup_log(f"[dry-run] {name}: would clean up {label}")
+            continue
+        ws = workspaces.get(c.get("space_ref"))
+        if ws:
+            run(["herdr", "workspace", "close", ws], check=False)
+        wt = fields.get("worktree")
+        if wt and Path(wt).exists() and "review" not in fields:
+            removed = run(["git", "-C", str(repo), "worktree", "remove", wt], check=False)
+            if removed.returncode != 0:
+                cleanup_log(f"{name}: kept worktree {wt}: {removed.stderr.strip()[:200]}")
+        branch = fields.get("branch") or pr.get("headRefName")  # review cards: the reviewed PR's branch
+        if branch and branch.startswith("wt/"):
+            run(["git", "-C", str(repo), "branch", "-D", branch], check=False)
+            run(["git", "-C", str(repo), "push", "origin", "--delete", branch], check=False)
+        board(repo, "card", "archive", str(c["id"]))
+        cleanup_log(f"{name}: cleaned up {label}: workspace closed, worktree and branch removed, card archived")
+    run(["git", "-C", str(repo), "worktree", "prune"], check=False)
+
+
+def cleanup(args):
+    for name, repo in products().items():
+        try:
+            cleanup_product(name, repo, dry_run=getattr(args, "dry_run", False))
+        except FactoryError as e:
+            print(f"{name}: cleanup: {e}", file=sys.stderr)
 
 
 # --- board setup ----------------------------------------------------------------------------------
@@ -328,6 +402,10 @@ def main():
     cr.set_defaults(func=critic)
 
     sub.add_parser("tick").set_defaults(func=tick)
+
+    cl = sub.add_parser("cleanup", help="close workspaces, remove worktrees, archive cards whose PR is finished")
+    cl.add_argument("--dry-run", action="store_true")
+    cl.set_defaults(func=cleanup)
 
     bd = sub.add_parser("board").add_subparsers(dest="board_cmd", required=True)
     setup = bd.add_parser("setup")
