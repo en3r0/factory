@@ -1,0 +1,180 @@
+#!/usr/bin/env python3
+"""factory-guard: blocks dangerous commands when an AGENT runs them. The operator is never blocked.
+
+Installed as symlinks named git, gh, board, ssh, scp, sftp and rsync in ~/.local/share/factory/shims,
+which comes first on PATH. It decides who is running the command:
+
+  agent    = BOARD_RUN_ID is set (a board card run) or HERMES_HOME is set (any Hermes session)
+  operator = neither (your own shells, systemd timers, factory scripts)
+
+For the operator it simply runs the real command. For agents it checks the rules below first. The
+column comes from the card's active run, so the Review, Docs review and Deploy columns get the extra
+rights their prompts describe. This is defense in depth: server-side branch rules stay the primary
+protection, and an agent calling a real binary by full path is not stopped here.
+"""
+
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+SHIMS = Path.home() / ".local/share/factory/shims"
+LOG = Path.home() / ".local/state/factory/guard.log"
+MERGE_COLUMNS = {"Review", "Docs review"}
+FORBIDDEN_TARGETS = {"execute", "approve", "publish", "deploy"}
+REMOTE_COLUMNS = {"Deploy"}
+
+
+def real_binary(name):
+    for d in os.environ.get("PATH", "").split(os.pathsep):
+        if not d or Path(d).resolve() == SHIMS.resolve():
+            continue
+        p = Path(d) / name
+        if p.is_file() and os.access(p, os.X_OK) and p.resolve() != Path(__file__).resolve():
+            return str(p)
+    sys.exit(f"factory-guard: real '{name}' not found on PATH")
+
+
+def is_agent():
+    return bool(os.environ.get("BOARD_RUN_ID") or os.environ.get("HERMES_HOME"))
+
+
+def who():
+    if os.environ.get("BOARD_RUN_ID"):
+        return f"card {os.environ.get('BOARD_CARD_ID', '?')} run {os.environ['BOARD_RUN_ID']}"
+    return f"hermes {Path(os.environ.get('HERMES_HOME', '?')).name}"
+
+
+def column():
+    """Column of this agent's active board run, or None (e.g. the head)."""
+    card, run = os.environ.get("BOARD_CARD_ID"), os.environ.get("BOARD_RUN_ID")
+    if not card or not run:
+        return None
+    try:
+        board = real_binary("board")
+        shown = json.loads(subprocess.run([board, "card", "show", card, "--json"],
+                                          capture_output=True, text=True, timeout=20).stdout)
+        cols = json.loads(subprocess.run([board, "--board", str(shown["card"]["board_id"]), "column",
+                                          "list", "--json"], capture_output=True, text=True, timeout=20).stdout)
+        names = {c["id"]: c["name"] for c in cols}
+        for r in shown["runs"]:
+            if str(r["id"]) == run:
+                return names.get(r["column_id"])
+    except Exception:
+        return None
+    return None
+
+
+def block(tool, args, reason):
+    LOG.parent.mkdir(parents=True, exist_ok=True)
+    with LOG.open("a") as f:
+        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} BLOCKED {who()} [{column() or '-'}] "
+                f"{tool} {' '.join(args)[:300]} :: {reason}\n")
+    sys.stderr.write(f"factory-guard: blocked `{tool} {' '.join(args)[:120]}`: {reason}\n"
+                     "This rule is in ~/Projects/factory/AGENTS.md. Do not work around it; escalate instead.\n")
+    sys.exit(126)
+
+
+def check_git(args):
+    if "--no-verify" in args or (args[:1] == ["commit"] and "-n" in args):
+        block("git", args, "--no-verify is never allowed")
+    if args[:1] == ["push"]:
+        rest = args[1:]
+        if any(a in ("-f", "--force", "--force-with-lease", "--mirror", "--delete", "-d") or
+               a.startswith("--force") for a in rest):
+            block("git", args, "force pushes and remote deletes are never allowed")
+        refs = [a for a in rest if not a.startswith("-")][1:]  # after the remote name
+        for ref in refs:
+            if ref.startswith("+"):
+                block("git", args, "force pushes are never allowed")
+            target = ref.split(":")[-1].removeprefix("refs/heads/")
+            if target == "HEAD":
+                target = subprocess.run([real_binary("git"), "branch", "--show-current"],
+                                        capture_output=True, text=True).stdout.strip()
+            if target in ("main", "master"):
+                block("git", args, "pushing to main/master is never allowed; open a PR")
+        if not refs:
+            branch = subprocess.run([real_binary("git"), "branch", "--show-current"],
+                                    capture_output=True, text=True).stdout.strip()
+            if branch in ("main", "master"):
+                block("git", args, "pushing from main/master is never allowed; work on a wt/ branch")
+
+
+def check_gh(args):
+    if any(a in ("--admin", "--auto") for a in args):
+        block("gh", args, "--admin and --auto are never allowed")
+    joined = " ".join(args)
+    if args[:2] == ["repo", "delete"] or args[:2] == ["repo", "edit"] or args[:2] == ["repo", "rename"]:
+        block("gh", args, "changing or deleting repositories is not an agent task")
+    if args[:2] == ["pr", "merge"] and column() not in MERGE_COLUMNS:
+        block("gh", args, "only the Review and Docs review columns merge PRs")
+    if args[:1] == ["api"] and re.search(r"/statuses/", joined) and re.search(r"(-X|--method)\s*POST|-f\s|--field|-F\s", joined):
+        if column() not in MERGE_COLUMNS:
+            block("gh", args, "only the Review and Docs review columns post commit statuses")
+    if args[:1] == ["api"] and re.search(r"(-X|--method)\s*DELETE", joined):
+        block("gh", args, "DELETE calls to the GitHub API are not allowed for agents")
+
+
+def check_board(args):
+    a = [x for x in args if x not in ("--json",)]
+    # strip global flags with values
+    clean, skip = [], False
+    for x in a:
+        if skip:
+            skip = False
+            continue
+        if x in ("--board", "--project"):
+            skip = True
+            continue
+        clean.append(x)
+    move = None
+    if clean[:2] == ["card", "move"] and len(clean) >= 4:
+        move = (clean[2], clean[3])
+    elif clean[:1] == ["move"] and len(clean) >= 3:
+        move = (clean[1], clean[2])
+    if move:
+        card, target = move
+        if target.lower() in FORBIDDEN_TARGETS:
+            block("board", args, f"agents never move cards into {target}")
+        try:
+            shown = json.loads(subprocess.run([real_binary("board"), "card", "show", card, "--json"],
+                                              capture_output=True, text=True, timeout=20).stdout)
+            cols = json.loads(subprocess.run([real_binary("board"), "--board", str(shown["card"]["board_id"]),
+                                              "column", "list", "--json"], capture_output=True, text=True,
+                                             timeout=20).stdout)
+            current = {c["id"]: c["name"] for c in cols}.get(shown["card"]["column_id"])
+        except Exception:
+            current = None
+        if current == "Needs you":
+            block("board", args, "agents never move cards out of Needs you")
+
+
+def check_remote(tool, args):
+    if column() in REMOTE_COLUMNS:
+        return
+    if tool == "rsync" and not any(":" in a and not a.startswith("-") for a in args):
+        return  # local-only rsync is fine
+    block(tool, args, "connecting to other machines is only allowed in the Deploy column")
+
+
+def main():
+    tool = Path(sys.argv[0]).name
+    args = sys.argv[1:]
+    if is_agent():
+        if tool == "git":
+            check_git(args)
+        elif tool == "gh":
+            check_gh(args)
+        elif tool == "board":
+            check_board(args)
+        elif tool in ("ssh", "scp", "sftp", "rsync"):
+            check_remote(tool, args)
+    real = real_binary(tool)
+    os.execv(real, [real, *args])
+
+
+if __name__ == "__main__":
+    main()

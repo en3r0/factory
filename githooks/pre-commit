@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Factory pre-commit hook (set per product repo with: git config core.hooksPath ~/Projects/factory/githooks).
+# Blocks committing .env files and anything gitleaks recognizes as a secret. Never bypass with --no-verify.
+set -euo pipefail
+
+bad_env=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '(^|/)\.env($|\.)' | grep -vE '\.env\.example$' || true)
+if [ -n "$bad_env" ]; then
+  echo "factory pre-commit: refusing to commit env files:" >&2
+  echo "$bad_env" | sed 's/^/  /' >&2
+  echo "Unstage them (git restore --staged <file>). Secrets stay in .env, which is gitignored." >&2
+  exit 1
+fi
+
+if command -v gitleaks >/dev/null 2>&1; then
+  if ! gitleaks git --staged --no-banner --redact --exit-code 1 >&2; then
+    echo "factory pre-commit: gitleaks found a possible secret in the staged changes (shown redacted above)." >&2
+    echo "Remove it from the change. If it is a false positive, escalate; never use --no-verify." >&2
+    exit 1
+  fi
+else
+  echo "factory pre-commit: gitleaks not installed; secret scan skipped" >&2
+fi

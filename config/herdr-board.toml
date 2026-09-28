@@ -1,0 +1,6 @@
+# herdr-board daemon config (factory). Source of truth: ~/Projects/factory/config/ (step 4).
+max_concurrent = 12
+
+[harness.hermes-factory-sandbox-researcher]
+argv = ["/home/en3r0/.local/bin/factory-hermes-run", "factory-sandbox-researcher"]
+resume = false
