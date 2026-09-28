@@ -50,6 +50,12 @@ tests each point.
 
 ## factory tick (every minute)
 
+- First keeps the factory itself current: fast-forwards `~/Projects/factory` to `origin/main` when the
+  checkout has no local edits (so merged factory PRs take effect), and when any file in `columns/` is
+  newer than the last sync, runs `factory board setup` on every product's existing columns. That
+  refreshes each column's prompt, harness, trigger, timeout and session from `boards.toml` and the
+  prompt files.
+
 - Exits without doing anything while `~/.local/state/factory/hold` exists.
 - For each product: moves a Backlog card to Execute only if its description starts with `spec:`, its
   epic's `epic.md` says "Approved by operator: yes", and every task in its "Depends on" is Done.

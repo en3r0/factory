@@ -37,7 +37,8 @@ class FactoryError(Exception):
 def run(cmd, cwd=None, check=True):
     p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
     if check and p.returncode != 0:
-        raise FactoryError(f"{' '.join(cmd)} failed ({p.returncode}): {p.stderr.strip() or p.stdout.strip()}")
+        shown = " ".join(a if len(a) < 80 else a[:40] + "…" for a in cmd)
+        raise FactoryError(f"{shown} failed ({p.returncode}): {p.stderr.strip() or p.stdout.strip()}")
     return p
 
 
@@ -219,8 +220,29 @@ def depends_on(spec_text):
     return re.findall(r"\b(\d{2,})\b", m.group(1))
 
 
+def sync_factory():
+    """Keep the factory checkout on origin/main (merged factory PRs) and every board's columns in line
+    with columns/. The checkout is only fast-forwarded when it has no local edits."""
+    if not run(["git", "-C", str(FACTORY), "status", "--porcelain", "--untracked-files=no"]).stdout.strip():
+        run(["git", "-C", str(FACTORY), "fetch", "-q", "origin"], check=False)
+        run(["git", "-C", str(FACTORY), "merge", "-q", "--ff-only", f"origin/{DEFAULT_BRANCH}"], check=False)
+    stamp = STATE / "columns-synced"
+    newest = max(p.stat().st_mtime for p in (FACTORY / "columns").iterdir())
+    if stamp.exists() and stamp.stat().st_mtime >= newest:
+        return
+    for name, repo in products().items():
+        try:
+            live = [c["name"] for c in board(repo, "column", "list")]
+            board_setup(argparse.Namespace(product=name, only=",".join(live)))
+        except FactoryError as e:
+            print(f"{name}: column sync failed: {e}", file=sys.stderr)
+            return
+    stamp.touch()
+
+
 def tick(args):
     STATE.mkdir(parents=True, exist_ok=True)
+    sync_factory()
     seen_file = STATE / "tick-needs-you"
     seen = set(seen_file.read_text().split()) if seen_file.exists() else set()
     now_needs = set()
@@ -370,6 +392,28 @@ def cleanup(args):
 
 # --- board setup ----------------------------------------------------------------------------------
 
+def refresh_column(repo, product, spec, live):
+    """Bring an existing column's prompt, harness, trigger, timeout and session in line with boards.toml."""
+    cmd = ["column", "edit", spec["name"]]
+    if "prompt" in spec:
+        text = (FACTORY / "columns" / spec["prompt"]).read_text()
+        if live.get("system_prompt") != text:
+            cmd += ["--prompt", text]
+    harness = spec["harness"].replace("{project}", product) if "harness" in spec else None
+    if harness and live.get("harness_override") != harness:
+        cmd += ["--harness", harness]
+    if live.get("trigger") != spec["trigger"]:
+        cmd += ["--trigger", spec["trigger"]]
+    if "timeout" in spec and live.get("timeout_minutes") != spec["timeout"]:
+        cmd += ["--timeout", str(spec["timeout"])]
+    fresh = {"fresh": True, "reuse": False}.get(spec.get("session"))
+    if fresh is not None and live.get("fresh_session") != fresh:
+        cmd += ["--fresh-session" if fresh else "--reuse-session"]
+    if len(cmd) > 3:
+        board(repo, *cmd)
+        print(f"updated column {spec['name']}")
+
+
 def board_setup(args):
     repo = product_repo(args.product)
     spec = tomllib.loads(BOARDS_TOML.read_text())["column"]
@@ -377,6 +421,7 @@ def board_setup(args):
     existing = {c["name"]: c for c in board(repo, "column", "list")}
     for pos, c in enumerate(wanted):
         if c["name"] in existing:
+            refresh_column(repo, args.product, c, existing[c["name"]])
             continue
         cmd = ["column", "create", "--name", c["name"], "--trigger", c["trigger"], "--position", str(pos)]
         if "prompt" in c:
@@ -518,16 +563,7 @@ def product_new(args):
             with PRODUCTS_FILE.open("a") as f:
                 f.write(f"{repo}\n")
 
-    # 4. Board with every column
-    if dry:
-        say("board: create the project board and every column from boards.toml")
-    elif repo.exists():
-        if not any(b["scope_path"] == str(repo) for b in json.loads(run(["board", "board", "list", "--all", "--json"]).stdout)):
-            run(["board", "project", "create", str(repo), "--json"])
-        board_setup(argparse.Namespace(product=name, only=None))
-        say("board: all columns in place")
-
-    # 5. Hermes role profiles, each with the OpenRouter key
+    # 4. Hermes role profiles, each with the OpenRouter key
     key_line = next((l for l in HERMES_ENV.read_text().splitlines() if l.startswith("OPENROUTER_API_KEY=")), None)
     if not key_line:
         raise FactoryError(f"no OPENROUTER_API_KEY in {HERMES_ENV}")
@@ -548,7 +584,7 @@ def product_new(args):
             env.write_text(key_line + "\n")
             env.chmod(0o600)
 
-    # 6. Board harnesses for the Hermes roles
+    # 5. Board harnesses for the Hermes roles
     text = HARNESS_TEMPLATE.read_text()
     added = []
     for role in roles:
@@ -559,11 +595,26 @@ def product_new(args):
                  f"argv = [\"{Path.home()}/.local/bin/factory-hermes-run\", \"{name}-{role}\"]\n"
                  "resume = false\n")
     if added:
-        say(f"harnesses: adding hermes-{name}-{{{','.join(added)}}} (live within a minute, via the governor)")
+        say(f"harnesses: adding hermes-{name}-{{{','.join(added)}}}")
         if not dry:
             HARNESS_TEMPLATE.write_text(text)
+            # The governor regenerates the live board config from the template and restarts the daemon.
+            run(["systemctl", "--user", "start", "factory-governor.service"])
+            for _ in range(30):
+                if run(["board", "version", "--json"], check=False).returncode == 0:
+                    break
+                time.sleep(1)
     else:
         say("harnesses: all present")
+
+    # 6. Board with every column (after the harnesses: a column's harness must already exist)
+    if dry:
+        say("board: create the project board and every column from boards.toml")
+    elif repo.exists():
+        if not any(b["scope_path"] == str(repo) for b in json.loads(run(["board", "board", "list", "--all", "--json"]).stdout)):
+            run(["board", "project", "create", str(repo), "--json"])
+        board_setup(argparse.Namespace(product=name, only=None))
+        say("board: all columns in place")
 
     # 7. Protection
     if public:
