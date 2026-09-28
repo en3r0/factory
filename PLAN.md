@@ -1,6 +1,6 @@
 # Factory agent operating plan
 
-Status: **approved 2026-09-26. Rollout step 1 done 2026-09-28; step 2 files written 2026-09-28 and reviewed by you plus three independent passes; step 3 next.** Review copy:
+Status: **approved 2026-09-26. Rollout step 1 done 2026-09-28; step 2 done 2026-09-28; step 3 done 2026-09-28 (end-to-end test on the public `factory-sandbox` repo passed: plan, critic, approval, Docs review, dispatch, Execute, Review, merge; Hermes runs as a visible board worker; one card at a time per remembering role; board daemon restarts safely). Step 4 next.** Review copy:
 https://claude.ai/code/artifact/724d764b-d891-4523-a0b8-da17bf091f91
 
 Hermes becomes the head agent on DeepSeek v4.1 Flash, herdr-board runs execution, Pi or Hermes does each task in visible Herdr panes you can step into, and you approve plans, posts and deploys.

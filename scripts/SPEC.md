@@ -38,6 +38,16 @@ tests each point.
   to **Docs review**, which merges the draft or batch PR. Until they exist, the operator does this
   move by hand.
 
+## factory-hermes-run <profile> (Hermes roles as board harnesses)
+
+- Configured per role in `~/.config/herdr-board/config.toml` as
+  `[harness.hermes-<product>-<role>] argv = ["~/.local/bin/factory-hermes-run", "<product>-<role>"]`.
+- Combines `$BOARD_SYSTEM_PROMPT` and `$BOARD_PROMPT` into one query file; runs Hermes interactively
+  with `--yolo` (unattended workers can't answer approval prompts; guardrails come from hooks).
+- One card at a time per remembering role: a lock per profile; a second card waits visibly.
+- When the board records the run as ended, waits 30 s, then ends Hermes, releasing the lock. The pane
+  keeps a shell with `hermes --resume <session>` for the operator. (Verified in step 3, 2026-09-28.)
+
 ## Governor
 
 - Writes budget alerts (50%, 80%, 100% of the $20 monthly total) and resource alerts as single lines

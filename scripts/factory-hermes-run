@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Runs one Hermes role profile as a herdr-board harness (configured in ~/.config/herdr-board/config.toml).
+#
+#   factory-hermes-run <profile> [--oneshot]
+#
+# - herdr-board passes the column prompt in $BOARD_SYSTEM_PROMPT and the card prompt in $BOARD_PROMPT;
+#   both go into one query file, read verbatim by Hermes (no shell interpretation).
+# - One card at a time per remembering role: a lock per profile. A second card for the same role
+#   waits here, visibly, until the first run's Hermes process exits.
+# - --yolo: unattended workers can't answer approval prompts. Guardrails come from factory hooks.
+set -euo pipefail
+
+profile="${1:?usage: factory-hermes-run <profile> [--oneshot]}"
+shift
+locks="$HOME/.local/state/factory/locks"
+mkdir -p "$locks"
+query="$(mktemp)"
+trap 'rm -f "$query"' EXIT
+printf '%s\n\n---\n\n%s\n' "${BOARD_SYSTEM_PROMPT:-}" "${BOARD_PROMPT:-}" > "$query"
+
+exec 9>"$locks/$profile.lock"
+if ! flock -n 9; then
+  echo "factory: another card is already running as $profile; waiting for it to finish..."
+  flock 9
+fi
+echo "factory: running $profile (card ${BOARD_CARD_ID:-?}, run ${BOARD_RUN_ID:-?})"
+
+# Hermes stays interactive after its turn (so the operator can step in during the run). Once the
+# board records this run as ended (the agent called `board done`), give a short grace period, then
+# end Hermes so the lock is released and the next card for this role can start.
+run_ended() {
+  board card show "$BOARD_CARD_ID" --json 2>/dev/null | python3 -c '
+import json, os, sys
+run = int(os.environ["BOARD_RUN_ID"])
+sys.exit(0 if any(r["id"] == run and r.get("ended_at") for r in json.load(sys.stdin)["runs"]) else 1)'
+}
+
+if [ -n "${BOARD_CARD_ID:-}" ] && [ -n "${BOARD_RUN_ID:-}" ]; then
+  wrapper=$$
+  (
+    # Hermes runs in the foreground (it needs the terminal); find it as this wrapper's child.
+    hermes_pid=""
+    for _ in $(seq 1 30); do
+      hermes_pid=$(pgrep -P "$wrapper" -f "hermes -p $profile" | head -1) && [ -n "$hermes_pid" ] && break
+      sleep 1
+    done
+    [ -n "$hermes_pid" ] || exit 0
+    while kill -0 "$hermes_pid" 2>/dev/null; do
+      if run_ended; then
+        sleep 30
+        echo; echo "factory: run finished; closing $profile so the next card can start."
+        kill -INT "$hermes_pid" 2>/dev/null; sleep 5; kill -TERM "$hermes_pid" 2>/dev/null
+        break
+      fi
+      sleep 10
+    done
+  ) </dev/null &
+fi
+hermes -p "$profile" chat --yolo --query-file "$query" "$@" || true

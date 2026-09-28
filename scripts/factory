@@ -273,6 +273,10 @@ def board_setup(args):
         board(repo, *cmd)
         print(f"created column {c['name']}")
     names = {c["name"] for c in board(repo, "column", "list")}
+    # Keep columns in boards.toml order, whatever subset exists.
+    ordered = [c["name"] for c in spec if c["name"] in names]
+    for pos, name in enumerate(ordered):
+        board(repo, "column", "reorder", name, str(pos))
     for c in wanted:
         cmd = ["column", "edit", c["name"]]
         for key in ("on_success", "on_fail"):
