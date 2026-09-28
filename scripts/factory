@@ -42,9 +42,20 @@ def run(cmd, cwd=None, check=True):
     return p
 
 
+def board_bin():
+    """The real board binary, skipping factory-guard's shims: factory scripts are trusted code, and the
+    head runs some of them (product new, board setup) as an agent. Their git and gh stay guarded."""
+    shims = (Path.home() / ".local/share/factory/shims").resolve()
+    for d in os.environ.get("PATH", "").split(os.pathsep):
+        p = Path(d) / "board"
+        if d and Path(d).resolve() != shims and p.is_file() and os.access(p, os.X_OK):
+            return str(p)
+    raise FactoryError("board not found on PATH")
+
+
 def board(repo, *args):
     """Run a board command scoped to a product's board (never changes the persistent selection)."""
-    out = run(["board", "--board", str(repo), *args, "--json"]).stdout
+    out = run([board_bin(), "--board", str(repo), *args, "--json"]).stdout
     return json.loads(out) if out.strip() else None
 
 
@@ -601,7 +612,7 @@ def product_new(args):
             # The governor regenerates the live board config from the template and restarts the daemon.
             run(["systemctl", "--user", "start", "factory-governor.service"])
             for _ in range(30):
-                if run(["board", "version", "--json"], check=False).returncode == 0:
+                if run([board_bin(), "version", "--json"], check=False).returncode == 0:
                     break
                 time.sleep(1)
     else:
@@ -611,8 +622,8 @@ def product_new(args):
     if dry:
         say("board: create the project board and every column from boards.toml")
     elif repo.exists():
-        if not any(b["scope_path"] == str(repo) for b in json.loads(run(["board", "board", "list", "--all", "--json"]).stdout)):
-            run(["board", "project", "create", str(repo), "--json"])
+        if not any(b["scope_path"] == str(repo) for b in json.loads(run([board_bin(), "board", "list", "--all", "--json"]).stdout)):
+            run([board_bin(), "project", "create", str(repo), "--json"])
         board_setup(argparse.Namespace(product=name, only=None))
         say("board: all columns in place")
 

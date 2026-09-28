@@ -7,7 +7,10 @@ which comes first on PATH. It decides who is running the command:
   agent    = BOARD_RUN_ID is set (a board card run) or HERMES_HOME is set (any Hermes session)
   operator = neither (your own shells, systemd timers, factory scripts)
 
-For the operator it simply runs the real command. For agents it checks the rules below first. The
+For agents it checks the rules below first. For the operator it runs the real command, with one
+exception that applies to everyone: board commands that archive, delete or rename must name their
+target explicitly, because herdr-board silently falls back to the selected board when an id is
+missing (an empty shell variable once archived the wrong board that way). The
 column comes from the card's active run, so the Review, Docs review and Deploy columns get the extra
 rights their prompts describe. This is defense in depth: server-side branch rules stay the primary
 protection, and an agent calling a real binary by full path is not stopped here.
@@ -46,7 +49,9 @@ def is_agent():
 def who():
     if os.environ.get("BOARD_RUN_ID"):
         return f"card {os.environ.get('BOARD_CARD_ID', '?')} run {os.environ['BOARD_RUN_ID']}"
-    return f"hermes {Path(os.environ.get('HERMES_HOME', '?')).name}"
+    if os.environ.get("HERMES_HOME"):
+        return f"hermes {Path(os.environ['HERMES_HOME']).name}"
+    return "operator"
 
 
 def column():
@@ -74,8 +79,9 @@ def block(tool, args, reason):
     with LOG.open("a") as f:
         f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} BLOCKED {who()} [{column() or '-'}] "
                 f"{tool} {' '.join(args)[:300]} :: {reason}\n")
-    sys.stderr.write(f"factory-guard: blocked `{tool} {' '.join(args)[:120]}`: {reason}\n"
-                     "This rule is in ~/Projects/factory/AGENTS.md. Do not work around it; escalate instead.\n")
+    hint = ("This rule is in ~/Projects/factory/AGENTS.md. Do not work around it; escalate instead."
+            if is_agent() else "Name the target explicitly (a literal id or path) and run it again.")
+    sys.stderr.write(f"factory-guard: blocked `{tool} {' '.join(args)[:120]}`: {reason}\n{hint}\n")
     sys.exit(126)
 
 
@@ -129,7 +135,55 @@ def check_gh(args):
         block("gh", args, "DELETE calls to the GitHub API are not allowed for agents")
 
 
+# Board commands that destroy or hide something. Everyone must name the target; agents may not run them.
+BOARD_DESTRUCTIVE = {("board", "archive"), ("board", "rename"), ("project", "archive"),
+                     ("column", "delete"), ("card", "delete"), ("card", "archive")}
+# Board commands agents never need: they change boards, columns or projects, or the operator's selection.
+BOARD_AGENT_FORBIDDEN = BOARD_DESTRUCTIVE | {
+    ("board", "create"), ("board", "restore"), ("board", "select"), ("board", "open"),
+    ("project", "create"), ("project", "restore"), ("project", "select"),
+    ("column", "create"), ("column", "edit"), ("column", "reorder"), ("card", "restore")}
+BOARD_VALUE_FLAGS = {"--board", "--project", "--move-cards-to", "--name", "--position"}
+
+
+def board_words(args):
+    """(subcommand pair, positional args after it), skipping flags and their values."""
+    words, skip = [], False
+    for x in args:
+        if skip:
+            skip = False
+            continue
+        if x.startswith("-"):
+            skip = x in BOARD_VALUE_FLAGS
+            continue
+        words.append(x)
+    return tuple(words[:2]), words[2:]
+
+
+def check_board_everyone(args):
+    for i, x in enumerate(args):
+        if x in ("--board", "--project"):
+            value = args[i + 1] if i + 1 < len(args) else ""
+            if not value.strip() or value.startswith("-"):
+                block("board", args, f"{x} has an empty value (an unset variable?); board would fall back "
+                                     "to the selected board")
+        elif x.startswith(("--board=", "--project=")) and not x.split("=", 1)[1].strip():
+            block("board", args, f"{x.split('=')[0]} has an empty value")
+    pair, rest = board_words(args)
+    if pair in BOARD_DESTRUCTIVE:
+        if not rest or not rest[0].strip():
+            block("board", args, f"`board {' '.join(pair)}` needs an explicit target; without one it acts on "
+                                 "the selected board")
+        if pair == ("column", "delete") and not any(x == "--board" or x.startswith("--board=") for x in args):
+            block("board", args, "`board column delete` needs --board <path>; a column name alone resolves on "
+                                 "the selected board")
+
+
 def check_board(args):
+    pair, _ = board_words(args)
+    if pair in BOARD_AGENT_FORBIDDEN:
+        block("board", args, f"agents never run `board {' '.join(pair)}`; boards, columns and projects are "
+                             "set up by factory scripts, and cards are archived by `factory cleanup`")
     a = [x for x in args if x not in ("--json",)]
     # strip global flags with values
     clean, skip = [], False
@@ -191,6 +245,8 @@ def check_remote(tool, args):
 def main():
     tool = Path(sys.argv[0]).name
     args = sys.argv[1:]
+    if tool == "board":
+        check_board_everyone(args)
     if is_agent():
         if tool == "git":
             check_git(args)

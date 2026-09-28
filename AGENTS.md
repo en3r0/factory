@@ -124,6 +124,10 @@ All of these must be true. If any is false, the card is not ready: fix the spec 
   `.env` stays gitignored; `.env.example` lists names only.
 - **Git.** Work only in your card's worktree. Never force-push, never push to `main`, never rewrite
   history others can see, never use `--no-verify`.
+- **Board.** You may show and list cards, comment, finish your run with `board done`, and move cards
+  as your column prompt says. Never create, edit, archive or delete boards, columns, projects or
+  cards, and never change the board selection: factory scripts do that (`factory product new`,
+  `factory cleanup`).
 - **This box is small** (an LXC container, 5 cores, 12 GB RAM). No heavy local builds, no installing
   toolchains to compile things; prefer prebuilt binaries and let CI build. Ask first if something
   big must run here.

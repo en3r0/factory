@@ -92,7 +92,15 @@ tests each point.
 
 - Blocks agents from moving cards into Execute, Approve, Publish or Deploy, and out of Needs you.
 - Allows `factory tick`'s moves into Execute, the publishing script's moves from Publish to Docs
-  review, `factory card new --review` creating cards in Docs review, and `board card archive`.
+  review, and `factory card new --review` creating cards in Docs review.
+- Blocks agents from creating, editing, reordering, archiving, restoring or deleting boards, columns,
+  projects and cards, and from changing the board selection. The factory scripts call the real
+  `board` binary (not the shim), so `factory product new`, `board setup` and `cleanup` still work when
+  the head runs them.
+- For everyone, the operator included: `board board archive|rename`, `board project archive`,
+  `board column delete` and `board card archive|delete` must name a target, `column delete` must also
+  pass `--board`, and `--board`/`--project` must never be empty. herdr-board otherwise falls back to
+  the selected board (an empty shell variable archived the wrong board once, 2026-09-28).
 - Nothing may post a `factory/review` status except the Review and Docs review columns.
 
 ## Timeouts
