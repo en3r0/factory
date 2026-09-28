@@ -190,6 +190,8 @@ def critic(args):
         while time.time() < deadline:
             if out.exists() and out.read_text().rstrip().splitlines()[-1:] == ["END"]:
                 result["status"] = "done"
+                time.sleep(5)
+                run(["herdr", "pane", "close", pane], check=False)  # findings are in critic.md
                 break
             time.sleep(20)
         else:
