@@ -274,6 +274,12 @@ Work that needs strong judgment goes first, while Claude is still available. The
 | 7 | Build the posting tool as an early factory epic. Install the chosen marketing skills (see `research/marketing-skills-audit.md`), interview you to write `personal-brand.md` and your voice sample, set up the marketing columns and the Google Search Console service account. | Partly: the voice sample and brand file benefit from Claude |
 | 8 | Loosen gates as trust builds. | Ongoing |
 
+## Todo
+
+- [ ] **ClipHuman server deploys by agents.** Build and test `ops/deploy.sh <component> <sha>` in the ClipHuman repo: copy exactly the promoted commit (never `--delete`, never touching on-box secrets), `npm install` when needed, restart, health check, and a rollback path. Until then agents promote `production` (which deploys the site) and you deploy the servers from the steps in each deploy request. Priority after the beta launch (decided 2026-09-28).
+- [ ] Per-profile OpenRouter keys ($7 cap each) once you create a provisioning key.
+- [ ] Ruleset on `en3r0/factory` when all factory changes should go through PRs.
+
 ## Open questions (answered 2026-09-25)
 
 | Question | Your answer |

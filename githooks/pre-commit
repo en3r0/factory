@@ -11,6 +11,18 @@ if [ -n "$bad_env" ]; then
   exit 1
 fi
 
+# Workflows decide what CI checks and what deploys: operator-only for every product. Agents are
+# identified the same way as in factory-guard (a board run or a Hermes session).
+if [ -n "${BOARD_RUN_ID:-}" ] || [ -n "${HERMES_HOME:-}" ]; then
+  wf=$(git diff --cached --name-only --diff-filter=ACMRD | grep -E '^\.github/workflows/' || true)
+  if [ -n "$wf" ]; then
+    echo "factory pre-commit: agents may not change CI/deploy workflows (operator-only):" >&2
+    echo "$wf" | sed 's/^/  /' >&2
+    echo "Unstage them and escalate if the change is needed." >&2
+    exit 1
+  fi
+fi
+
 if command -v gitleaks >/dev/null 2>&1; then
   if ! gitleaks git --staged --no-banner --redact --exit-code 1 >&2; then
     echo "factory pre-commit: gitleaks found a possible secret in the staged changes (shown redacted above)." >&2

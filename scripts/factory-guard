@@ -121,6 +121,10 @@ def check_gh(args):
     if args[:1] == ["api"] and re.search(r"/statuses/", joined) and re.search(r"(-X|--method)\s*POST|-f\s|--field|-F\s", joined):
         if column() not in MERGE_COLUMNS:
             block("gh", args, "only the Review and Docs review columns post commit statuses")
+    if args[:2] in (["workflow", "run"], ["workflow", "enable"], ["workflow", "disable"]) or args[:1] in (["secret"], ["variable"]):
+        block("gh", args, "running workflows and changing repo secrets/variables are operator-only")
+    if args[:1] == ["api"] and re.search(r"/git/refs", joined) and re.search(r"(-X|--method)\s*(POST|PATCH|PUT)|-f\s|--field|-F\s", joined):
+        block("gh", args, "moving branches through the API is not allowed; use git push on your wt/ branch")
     if args[:1] == ["api"] and re.search(r"(-X|--method)\s*DELETE", joined):
         block("gh", args, "DELETE calls to the GitHub API are not allowed for agents")
 

@@ -65,6 +65,9 @@ Keep the run names and conclusions for the report.
   untracked files that were not in it. Never run `git checkout -- .` or `git clean`, and never commit
   these files.
 - **Scope:** every changed file must be justified by the spec. Unrelated changes are a blocker.
+- **Operator-only files:** if the diff touches any file the product's `AGENTS.md` lists as
+  operator-only (or anything under `.github/workflows/`), escalate with `operator-only files`, even if
+  the spec asks for it. Never merge such a PR.
 - **Correctness:** look for bugs the tests would not catch: edge cases, error handling, security
   (injection, secrets, auth), data loss.
 - **Tests:** the spec's "Tests to add or update" are present and actually test the behavior.
@@ -131,7 +134,7 @@ Required fixes:
 
 ## 6. Escalating
 
-Escalate (not FAIL) only in these cases: no PR or wrong branch; a closed PR; a PR merged outside
+Escalate (not FAIL) only in these cases: operator-only files; no PR or wrong branch; a closed PR; a PR merged outside
 review; local and PR commits differ; CI missing; `main` CI broken; CI failed on the review commit; a
 criterion that cannot be run; a merge that is blocked or failed; or you cannot decide PASS or FAIL at
 all (say why). Comment:
