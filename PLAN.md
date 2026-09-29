@@ -1,6 +1,6 @@
 # Factory agent operating plan
 
-Status: **approved 2026-09-26. Rollout steps 1–4 done 2026-09-28 (step 4 except items waiting on you, see Your setup checklist); step 5 done 2026-09-28: ClipHuman onboarded as product #1 (PR #1 merged: `AGENTS.md` distilled from `CLAUDE.md` and `docs/memory/`, `main` + `production` branches, guard-only protection since the repo stays private, board and critic installed, server deploys stay with you until the Todo deploy script exists); step 6 done 2026-09-28: `factory product new` tested end to end on a throwaway repo. Step 7 next.** Review copy:
+Status: **approved 2026-09-26. Rollout steps 1–4 done 2026-09-28 (step 4 except items waiting on you, see Your setup checklist); step 5 done 2026-09-28: ClipHuman onboarded as product #1 (PR #1 merged: `AGENTS.md` distilled from `CLAUDE.md` and `docs/memory/`, `main` + `production` branches, guard-only protection since the repo stays private, board and critic installed, server deploys stay with you until the Todo deploy script exists); step 6 done 2026-09-28: `factory product new` tested end to end on a throwaway repo. Step 7 in progress (2026-09-29): skills reviewed and synced, personal brand onboarded as product `personal`, brand v1 awaiting your merge; see the Rollout table.** Review copy:
 https://claude.ai/code/artifact/724d764b-d891-4523-a0b8-da17bf091f91
 
 Hermes becomes the head agent on DeepSeek v4.1 Flash, herdr-board runs execution, Pi or Hermes does each task in visible Herdr panes you can step into, and you approve plans, posts and deploys.
@@ -20,8 +20,8 @@ These came from our Q&A and are treated as fixed unless you change them.
 | Concurrency | No fixed cap. React when box resources get critical. |
 | Machine | This LXC container `agent-box` on the Proxmox host (5 cores, 12 GB RAM, no Docker) is dedicated. Workers run yolo inside worktrees. |
 | Secrets | `.env` per project, gitignored. |
-| Repos | `~/Projects/<product>` ↔ `github.com/en3r0/<product>`, one repo per product. The ops repo is named `factory` and is public (changed 2026-09-28 so GitHub enforces its rules); ClipHuman stays private. |
-| Marketing | All of it, for products and your personal brand. Skills chosen from a six-repo audit; roles that improve by remembering get their own Hermes profile. |
+| Repos | `~/Projects/<product>` ↔ `github.com/en3r0/<product>`, one repo per product. The ops repo is named `factory` and is public (changed 2026-09-28 so GitHub enforces its rules); ClipHuman and `personal` (your personal brand, onboarded 2026-09-29) stay private; the test repos `factory-sandbox` and `factory-test` are retired. |
+| Marketing | All of it, for products and your personal brand. Skills chosen from a six-repo audit; roles that improve by remembering get their own Hermes profile. Every skill file was read before it reached a profile (2026-09-29), and `AGENTS.md` says skills are reference, not permission: no installs, account sign-ups, paid APIs, scraping, guessed emails or outside sends without your approval on the card. |
 | Visibility | Every agent must be visible in Herdr and easy to step into (hence Option D, herdr-board). |
 
 ## Core architecture
@@ -129,11 +129,11 @@ Three rules follow from how Hermes memory works:
 | Brand & voice (#2) | Yes | Hermes | Owns each project's brand and voice file (`personal-brand.md` for your personal project, with your voice sample, built from the interview plus your existing posts, emails and other writing; the editor checks every draft against it. No AI labels, so matching your style is critical); `content-strategy` pillars (marketingskills); `personal-strategic-signal-intelligence` (ai-marketing) | Brand changes |
 | Researcher (#3) | Yes | Hermes (web, browser) | `customer-research`, `competitor-profiling` (marketingskills); `market-sizing`, `competitive-battlecard` (pm-skills); built-in `competitor-news-monitor` | — |
 | Analyst (#4) | Yes | Hermes, scheduled | Owns `performance-log.md`; `analytics`, `ab-testing` (marketingskills); iannuttall `monthly-report`; `growth-engine` (ai-marketing) once there is traffic | — |
-| Content creator (#5) | Yes | Hermes | `social`, `copywriting` (marketingskills); `x-longform-post`, `content-ops` expert panel (ai-marketing); formats for X, LinkedIn, short video, blog, newsletter | Via Approve |
+| Content creator (#5) | Yes | Hermes | `social`, `copywriting` (marketingskills); `x-longform-post`, `shortform-idea-grill` (ai-marketing; `content-ops` left out); formats for X, LinkedIn, short video, blog, newsletter | Via Approve |
 | Community (#9) | Yes | Hermes (built-in `xurl` etc.) | `social` listening, `community-marketing` (marketingskills); drafts replies in batches | Every batch |
 | Outreach & PR (#10) | Yes | Hermes (built-in `himalaya` email) | Owns `contacts.csv`; `prospecting`, `cold-email`, `public-relations` (marketingskills) | Every batch |
 | SEO & site (#11) | Yes | Hermes, scheduled | iannuttall `seo` CLI (audit, `top-fixes`, `ai-readiness`, `llms.txt`, `quick-wins`, `decaying-pages`, `technical-watch`); `ai-seo`, `schema` (marketingskills). Fixes become Execute cards | Deploys |
-| General marketing worker | No | Hermes or Pi per card | Video: ClipHuman, `shortform-idea-grill`, `net-new-video-editor` (ai-marketing), `video` (marketingskills). Editing: regex lint + `humanizer`, `copy-editing`. Launches: `directory-submissions`. Anything else ad hoc | Via Approve |
+| General marketing worker | No | Hermes or Pi per card | Video: ClipHuman, `shortform-idea-grill`, `net-new-video-editor` (ai-marketing), `video` (marketingskills). Editing: regex lint + `humanizer`, `copy-editing`. Launches: `launch` (`directory-submissions` dropped 2026-09-29: mostly mass account creation). Anything else ad hoc | Via Approve |
 | Publishing (#8) | — | Script, not an agent | Posts approved items at the strategist's scheduled time through the factory's own Postiz instance (official platform APIs), and sends approved emails | Already approved |
 
 **Planned, not active: affiliate websites.** A future product type. It would draw on Affitor's research, content and landing-page skills after cleanup: remove the "Powered by Affitor" footer and UTM tags, drop `reddit-post-writer`'s disguised-promotion pattern, and add FTC disclosure via `compliance-checker`.
@@ -241,12 +241,13 @@ Things only you can do. The first list has no dependencies. The second waits for
 
 - [x] Take a Proxmox snapshot of this VM (on the host). Done 2026-09-26.
 - [ ] OpenRouter: account, an API key with a $20 monthly limit (2026-09-26) and $10 of credit (2026-09-28) are done. Still needed: a provisioning key so the factory can create per-profile keys with $7 monthly limits. Rotate the key you pasted in chat once per-profile keys exist.
-- [x] GitHub: create a fine-grained token limited to the factory's repos (`factory`, `social-warrior`). Read/write: Contents, Pull requests, Issues, Commit statuses. Read: Actions, Metadata. Add Administration read/write only if agents should set branch protection; otherwise you set it per repo when asked. Done 2026-09-28; add each new product repo to it (plus Workflows read/write).
+- [x] GitHub: create a fine-grained token limited to the factory's repos (`factory`, `social-warrior`). Read/write: Contents, Pull requests, Issues, Commit statuses. Read: Actions, Metadata. Add Administration read/write only if agents should set branch protection; otherwise you set it per repo when asked. Done 2026-09-28; add each new product repo to it (plus Workflows read/write). `personal` added 2026-09-29.
+- [ ] Delete the test repos `en3r0/factory-test` and `en3r0/factory-sandbox` on GitHub and remove both from the token. Optional: the empty `factory-sandbox` board project (#3) won't archive (`board project archive 3` fails with "No such file or directory"); it's harmless.
 - [ ] Email: log in to me@dustinmontgomery.net, send and receive a test, and note its IMAP/SMTP settings plus an app password.
 - [ ] X: developer account on the pay-per-use plan with the minimum credits.
 - [ ] Google Search Console: verify cliphuman.com and dustinmontgomery.com (DNS TXT record in Cloudflare).
-- [ ] Voice training material: links to or exports of your posts (X, LinkedIn), a few emails, and anything else you've written that sounds like you.
-- [ ] Book about an hour for the brand interview.
+- [x] Voice training material: links to or exports of your posts (X, LinkedIn), a few emails, and anything else you've written that sounds like you. Done 2026-09-29: five published pieces and your X bio; short posts come in the second interview (Todo).
+- [x] Book about an hour for the brand interview. First interview done 2026-09-29; the second is in Todo.
 - [x] Enable linger so factory services survive logout and reboot: `sudo loginctl enable-linger en3r0`.
 - [ ] Add the same `protect main` ruleset to `en3r0/factory` (public), once you're happy for all factory changes to go through PRs.
 
@@ -273,7 +274,7 @@ Work that needs strong judgment goes first, while Claude is still available. The
 | 4 | Guardrail hooks, `board move` guard, governor, branch protection. | Partly |
 | 5 | Distill Social Warrior's memory into `AGENTS.md` and onboard it as product #1. | Yes |
 | 6 | `factory product new` bootstrap. Done 2026-09-28: you create the GitHub repo and add it to the token; the command (you or the head) does the rest and lists what is left for you. `factory tick` now also keeps the factory checkout and every board's column prompts current. | No |
-| 7 | Install the chosen marketing skills (see `research/marketing-skills-audit.md`), interview you to write `personal-brand.md` and your voice sample, set up the marketing columns and the Google Search Console service account. | Partly: the voice sample and brand file benefit from Claude |
+| 7 | Install the chosen marketing skills (see `research/marketing-skills-audit.md`), interview you to write `personal-brand.md` and your voice sample, set up the marketing columns and the Google Search Console service account. In progress 2026-09-29: every copied skill file was read before syncing, then synced into each role and its profiles (`directory-submissions` dropped; new `AGENTS.md` rule: skills are reference, not permission; the `seo` CLI is installed); the marketing columns are on every board; your personal brand is product `personal` (private repo, board, profiles); the first brand interview is done and `personal-brand.md` v1 waits in personal PR #1 for your merge. Left: the second interview, the ClipHuman brand interview, the Search Console service account. | Partly: the voice sample and brand file benefit from Claude |
 | 8 | Loosen gates as trust builds. | Ongoing |
 
 ## Todo
