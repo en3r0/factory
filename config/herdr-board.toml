@@ -36,3 +36,39 @@ resume = false
 [harness.hermes-social-warrior-strategist]
 argv = ["/home/en3r0/.local/bin/factory-hermes-run", "social-warrior-strategist"]
 resume = false
+
+[harness.hermes-personal-analyst]
+argv = ["/home/en3r0/.local/bin/factory-hermes-run", "personal-analyst"]
+resume = false
+
+[harness.hermes-personal-brand]
+argv = ["/home/en3r0/.local/bin/factory-hermes-run", "personal-brand"]
+resume = false
+
+[harness.hermes-personal-community]
+argv = ["/home/en3r0/.local/bin/factory-hermes-run", "personal-community"]
+resume = false
+
+[harness.hermes-personal-content]
+argv = ["/home/en3r0/.local/bin/factory-hermes-run", "personal-content"]
+resume = false
+
+[harness.hermes-personal-marketer]
+argv = ["/home/en3r0/.local/bin/factory-hermes-run", "personal-marketer"]
+resume = false
+
+[harness.hermes-personal-outreach]
+argv = ["/home/en3r0/.local/bin/factory-hermes-run", "personal-outreach"]
+resume = false
+
+[harness.hermes-personal-researcher]
+argv = ["/home/en3r0/.local/bin/factory-hermes-run", "personal-researcher"]
+resume = false
+
+[harness.hermes-personal-seo]
+argv = ["/home/en3r0/.local/bin/factory-hermes-run", "personal-seo"]
+resume = false
+
+[harness.hermes-personal-strategist]
+argv = ["/home/en3r0/.local/bin/factory-hermes-run", "personal-strategist"]
+resume = false
