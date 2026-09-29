@@ -238,14 +238,14 @@ Things only you can do. The first list has no dependencies. The second waits for
 **Now**
 
 - [x] Take a Proxmox snapshot of this VM (on the host). Done 2026-09-26.
-- [ ] OpenRouter: account and an API key with a $20 monthly limit are done (2026-09-26). Still needed: load credit (the account shows $0, free tier), and create a provisioning key so the factory can create per-profile keys with $7 monthly limits. Rotate the key you pasted in chat once per-profile keys exist.
-- [ ] GitHub: create a fine-grained token limited to the factory's repos (`factory`, `social-warrior`). Read/write: Contents, Pull requests, Issues, Commit statuses. Read: Actions, Metadata. Add Administration read/write only if agents should set branch protection; otherwise you set it per repo when asked.
+- [ ] OpenRouter: account, an API key with a $20 monthly limit (2026-09-26) and $10 of credit (2026-09-28) are done. Still needed: a provisioning key so the factory can create per-profile keys with $7 monthly limits. Rotate the key you pasted in chat once per-profile keys exist.
+- [x] GitHub: create a fine-grained token limited to the factory's repos (`factory`, `social-warrior`). Read/write: Contents, Pull requests, Issues, Commit statuses. Read: Actions, Metadata. Add Administration read/write only if agents should set branch protection; otherwise you set it per repo when asked. Done 2026-09-28; add each new product repo to it (plus Workflows read/write).
 - [ ] Email: log in to me@dustinmontgomery.net, send and receive a test, and note its IMAP/SMTP settings plus an app password.
 - [ ] X: developer account on the pay-per-use plan with the minimum credits.
 - [ ] Google Search Console: verify cliphuman.com and dustinmontgomery.com (DNS TXT record in Cloudflare).
 - [ ] Voice training material: links to or exports of your posts (X, LinkedIn), a few emails, and anything else you've written that sounds like you.
 - [ ] Book about an hour for the brand interview.
-- [ ] Enable linger so factory services survive logout and reboot: `sudo loginctl enable-linger en3r0`.
+- [x] Enable linger so factory services survive logout and reboot: `sudo loginctl enable-linger en3r0`.
 - [ ] Add the same `protect main` ruleset to `en3r0/factory` (public), once you're happy for all factory changes to go through PRs.
 
 **Later, per project (ClipHuman first)**
