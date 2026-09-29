@@ -1,5 +1,7 @@
 # Skills for this role: <repo from skills/sources.toml>:<skill folder name>. Synced by `factory skills sync`.
+# "-<repo>:<skill>" leaves one skill out of a "<repo>:*" line.
 marketingskills:*
+-marketingskills:directory-submissions
 humanizer:humanizer
 ai-marketing-skills:x-longform-post
 ai-marketing-skills:shortform-idea-grill

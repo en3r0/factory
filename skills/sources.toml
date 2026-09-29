@@ -15,6 +15,7 @@ license = "MIT"
 
 [humanizer]
 url = "https://github.com/blader/humanizer"
+exclude = ["scripts"]  # the skill is the repo root; scripts/ only validates the package for its maintainers
 commit = "225a6f39ac85f76ee48dbad772ea4abe4ed6c9d8"
 license = "MIT"
 

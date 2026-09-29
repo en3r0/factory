@@ -2,7 +2,6 @@
 marketingskills:product-marketing
 marketingskills:launch
 marketingskills:marketing-loops
-marketingskills:directory-submissions
 pm-skills:beachhead-segment
 pm-skills:ideal-customer-profile
 pm-skills:positioning-ideas
