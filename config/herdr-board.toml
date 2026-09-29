@@ -4,3 +4,39 @@
 [harness.hermes-factory-sandbox-researcher]
 argv = ["/home/en3r0/.local/bin/factory-hermes-run", "factory-sandbox-researcher"]
 resume = false
+
+[harness.hermes-social-warrior-analyst]
+argv = ["/home/en3r0/.local/bin/factory-hermes-run", "social-warrior-analyst"]
+resume = false
+
+[harness.hermes-social-warrior-brand]
+argv = ["/home/en3r0/.local/bin/factory-hermes-run", "social-warrior-brand"]
+resume = false
+
+[harness.hermes-social-warrior-community]
+argv = ["/home/en3r0/.local/bin/factory-hermes-run", "social-warrior-community"]
+resume = false
+
+[harness.hermes-social-warrior-content]
+argv = ["/home/en3r0/.local/bin/factory-hermes-run", "social-warrior-content"]
+resume = false
+
+[harness.hermes-social-warrior-marketer]
+argv = ["/home/en3r0/.local/bin/factory-hermes-run", "social-warrior-marketer"]
+resume = false
+
+[harness.hermes-social-warrior-outreach]
+argv = ["/home/en3r0/.local/bin/factory-hermes-run", "social-warrior-outreach"]
+resume = false
+
+[harness.hermes-social-warrior-researcher]
+argv = ["/home/en3r0/.local/bin/factory-hermes-run", "social-warrior-researcher"]
+resume = false
+
+[harness.hermes-social-warrior-seo]
+argv = ["/home/en3r0/.local/bin/factory-hermes-run", "social-warrior-seo"]
+resume = false
+
+[harness.hermes-social-warrior-strategist]
+argv = ["/home/en3r0/.local/bin/factory-hermes-run", "social-warrior-strategist"]
+resume = false

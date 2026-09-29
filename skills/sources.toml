@@ -1,0 +1,32 @@
+# Third-party skill repos the factory uses, each pinned to a reviewed commit.
+# `factory skills sync` copies the skills each role lists in roles/<role>/skills.txt into
+# roles/<role>/skills/<name>/, together with the repo's LICENSE. To update a repo: change its commit
+# here, run the sync, and review the diff before committing. Chosen in research/marketing-skills-audit.md.
+
+[marketingskills]
+url = "https://github.com/coreyhaines31/marketingskills"
+commit = "5b2c0007766c6a1cf1d53fd8fc73e979e0821022"
+license = "MIT"
+
+[pm-skills]
+url = "https://github.com/phuryn/pm-skills"
+commit = "8607e3b077817f89bf4a9b623246219734ac3be0"
+license = "MIT"
+
+[humanizer]
+url = "https://github.com/blader/humanizer"
+commit = "225a6f39ac85f76ee48dbad772ea4abe4ed6c9d8"
+license = "MIT"
+
+[ai-marketing-skills]
+# Cherry-picked prompt-only skills. Not used yet: content-ops (calls the Anthropic API directly and
+# runs telemetry scripts) and conversion-ops (needs scikit-learn/pandas); both need porting first.
+url = "https://github.com/ericosiu/ai-marketing-skills"
+commit = "8088e1a167804d5615f6e982f62e5b4b6ff8f2f1"
+license = "MIT"
+
+[seo]
+# The skill drives the `seo` CLI (npm package `seo`, Node >= 22.19), which it installs if missing.
+url = "https://github.com/iannuttall/seo"
+commit = "5b794fe9c8addbc227c49262bb6ac79ad8429452"
+license = "Apache-2.0"

@@ -1,0 +1,4 @@
+# Skills for this role: <repo from skills/sources.toml>:<skill folder name>. Synced by `factory skills sync`.
+pm-skills:create-prd
+pm-skills:user-stories
+pm-skills:job-stories

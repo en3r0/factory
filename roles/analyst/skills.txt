@@ -1,0 +1,5 @@
+# Skills for this role: <repo from skills/sources.toml>:<skill folder name>. Synced by `factory skills sync`.
+marketingskills:product-marketing
+marketingskills:analytics
+marketingskills:ab-testing
+seo:seo

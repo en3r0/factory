@@ -1,0 +1,9 @@
+# Skills for this role: <repo from skills/sources.toml>:<skill folder name>. Synced by `factory skills sync`.
+marketingskills:product-marketing
+marketingskills:launch
+marketingskills:marketing-loops
+marketingskills:directory-submissions
+pm-skills:beachhead-segment
+pm-skills:ideal-customer-profile
+pm-skills:positioning-ideas
+pm-skills:pricing-strategy
