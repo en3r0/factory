@@ -53,7 +53,7 @@ Each product has one board with the same 15 columns, defined in `columns/boards.
 | Outreach | auto | The project's outreach & PR role (Hermes). Builds one batch of personal messages. Blocked until cold-email compliance is set up. | Approve | Needs you |
 | Docs review | auto, fresh session | Pi with the docs-review prompt. The independent check on every non-code PR: allowed paths only, required approvals present, no secrets, CI green. Merges on pass. Cards arrive from Research and SEO, from the head and marketing roles via `factory card new --review`, and from Publish after an item is posted or sent. | Done | Needs you |
 | Approve | manual | You. Approve: move to Publish. Reject: comment why and move back to Draft. | — | — |
-| Publish | manual | No agent. The publishing script posts cards here at their scheduled time, then moves them to Docs review to merge what went out. You post by hand (and move the card) until the posting tool exists. | — | — |
+| Publish | manual | No agent. The publishing script posts cards here at their scheduled time, then moves them to Docs review to merge what went out. You post by hand (and move the card) until the factory's Postiz instance exists. | — | — |
 | Deploy | auto, entered only by you | Pi with the deploy prompt. Runs an approved deploy request exactly as written; stops and hands you rollback commands on any failure. | Done | Needs you |
 | Needs you | manual | Parking for failures, escalations and questions. Agents never move cards out of it. | — | — |
 | Done | manual | — | — | — |
@@ -134,7 +134,7 @@ Three rules follow from how Hermes memory works:
 | Outreach & PR (#10) | Yes | Hermes (built-in `himalaya` email) | Owns `contacts.csv`; `prospecting`, `cold-email`, `public-relations` (marketingskills) | Every batch |
 | SEO & site (#11) | Yes | Hermes, scheduled | iannuttall `seo` CLI (audit, `top-fixes`, `ai-readiness`, `llms.txt`, `quick-wins`, `decaying-pages`, `technical-watch`); `ai-seo`, `schema` (marketingskills). Fixes become Execute cards | Deploys |
 | General marketing worker | No | Hermes or Pi per card | Video: ClipHuman, `shortform-idea-grill`, `net-new-video-editor` (ai-marketing), `video` (marketingskills). Editing: regex lint + `humanizer`, `copy-editing`. Launches: `directory-submissions`. Anything else ad hoc | Via Approve |
-| Publishing (#8) | — | Script, not an agent | Posts approved items at the strategist's scheduled time through the factory's own posting tool (direct platform APIs, no Postiz), and sends approved emails | Already approved |
+| Publishing (#8) | — | Script, not an agent | Posts approved items at the strategist's scheduled time through the factory's own Postiz instance (official platform APIs), and sends approved emails | Already approved |
 
 **Planned, not active: affiliate websites.** A future product type. It would draw on Affitor's research, content and landing-page skills after cleanup: remove the "Powered by Affitor" footer and UTM tags, drop `reddit-post-writer`'s disguised-promotion pattern, and add FTC disclosure via `compliance-checker`.
 
@@ -214,9 +214,11 @@ Agents merging their own work is safe only because CI, branch protection and hoo
 | `hooks/` | Guardrail hooks, including the `board move` guard. |
 | `config/` | Not created yet. Step 3 adds `herdr-board/config.toml` (harnesses, `max_concurrent`), symlinked into place. |
 
-## Posting tool
+## Posting
 
-The factory builds its own small posting tool as an early epic, one adapter per platform. Each adapter requests only the permissions posting needs, which avoids the reviews and audits that the broader permission sets trigger.
+Decided 2026-09-29: posting goes through a **new Postiz instance for the factory**, completely separate from ClipHuman's (own server, database, developer apps and accounts; nothing reused). This replaces the earlier plan to build a posting tool, to keep things simple. Posting uses official APIs only, never a logged-in browser: browser automation breaks the platforms' terms (LinkedIn restricts accounts for it), gives an agent full control of the account, and can't be limited to approved posts. Setting it up is on the Todo list; until then you post approved items by hand.
+
+The platform permissions below still apply: each project's developer apps request only what posting needs.
 
 | Platform | Permissions requested | Works without review? | Notes |
 | --- | --- | --- | --- |
@@ -227,13 +229,13 @@ The factory builds its own small posting tool as an early epic, one adapter per 
 | X | Pay-per-use API, about $0.015 per post | n/a | Minimum X credits only |
 | Threads, Bluesky, Mastodon | Their standard posting APIs | Yes | Simple |
 
-Each project connects its accounts once through a command-line login. Tokens stay in that project's `.env`; the tool refreshes them.
+Each project connects its accounts once in Postiz (one Postiz workspace per project). Postiz holds and refreshes the tokens; agents only get a Postiz API key that schedules posts.
 
 **Email.** There is no sending service. Outreach sends from `me@dustinmontgomery.net` over its own mail server, using Hermes' built-in `himalaya` email client, once the mailbox is confirmed working. $0.
 
 ## Your setup checklist
 
-Things only you can do. The first list has no dependencies. The second waits for the posting tool's design, which sets the callback URLs each developer app needs.
+Things only you can do. The first list has no dependencies. The second waits for the factory's Postiz instance, which sets the callback URLs each developer app needs.
 
 **Now**
 
@@ -271,7 +273,7 @@ Work that needs strong judgment goes first, while Claude is still available. The
 | 4 | Guardrail hooks, `board move` guard, governor, branch protection. | Partly |
 | 5 | Distill Social Warrior's memory into `AGENTS.md` and onboard it as product #1. | Yes |
 | 6 | `factory product new` bootstrap. Done 2026-09-28: you create the GitHub repo and add it to the token; the command (you or the head) does the rest and lists what is left for you. `factory tick` now also keeps the factory checkout and every board's column prompts current. | No |
-| 7 | Build the posting tool as an early factory epic. Install the chosen marketing skills (see `research/marketing-skills-audit.md`), interview you to write `personal-brand.md` and your voice sample, set up the marketing columns and the Google Search Console service account. | Partly: the voice sample and brand file benefit from Claude |
+| 7 | Install the chosen marketing skills (see `research/marketing-skills-audit.md`), interview you to write `personal-brand.md` and your voice sample, set up the marketing columns and the Google Search Console service account. | Partly: the voice sample and brand file benefit from Claude |
 | 8 | Loosen gates as trust builds. | Ongoing |
 
 ## Todo
@@ -279,6 +281,7 @@ Work that needs strong judgment goes first, while Claude is still available. The
 - [ ] **ClipHuman server deploys by agents.** Build and test `ops/deploy.sh <component> <sha>` in the ClipHuman repo: copy exactly the promoted commit (never `--delete`, never touching on-box secrets), `npm install` when needed, restart, health check, and a rollback path. Until then agents promote `production` (which deploys the site) and you deploy the servers from the steps in each deploy request. Priority after the beta launch (decided 2026-09-28).
 - [ ] Per-profile OpenRouter keys ($7 cap each) once you create a provisioning key.
 - [ ] Ruleset on `en3r0/factory` when all factory changes should go through PRs.
+- [ ] **The factory's own Postiz instance** (decided 2026-09-29), separate from ClipHuman's. Open: where it runs (this box has no Docker and little RAM; another LXC on the Proxmox host is likely), its domain for OAuth callbacks, one workspace per project, and how the Publish column hands approved posts to it (Postiz public API key, schedule only). Then the per-project developer apps in the checklist.
 
 ## Open questions (answered 2026-09-25)
 
