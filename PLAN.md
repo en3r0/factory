@@ -282,6 +282,7 @@ Work that needs strong judgment goes first, while Claude is still available. The
 - [ ] Per-profile OpenRouter keys ($7 cap each) once you create a provisioning key.
 - [ ] Ruleset on `en3r0/factory` when all factory changes should go through PRs.
 - [ ] **The factory's own Postiz instance** (decided 2026-09-29), separate from ClipHuman's. Open: where it runs (this box has no Docker and little RAM; another LXC on the Proxmox host is likely), its domain for OAuth callbacks, one workspace per project, and how the Publish column hands approved posts to it (Postiz public API key, schedule only). Then the per-project developer apps in the checklist.
+- [ ] **Second brand interview (personal)**, after PR #1 on `en3r0/personal` merges: newsletter name and platform; what you're building now that's public; ClipHuman in your own words; a few short posts or replies (the short-form voice isn't captured yet). Answers go into `personal-brand.md`'s facts bank. Then the ClipHuman brand interview.
 
 ## Open questions (answered 2026-09-25)
 
