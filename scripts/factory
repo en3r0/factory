@@ -737,7 +737,7 @@ def product_new(args):
             say("protection: ruleset present")
         else:
             todo.append(f"Public repo: add the `protect main` ruleset on github.com/{slug}/settings/rules "
-                        "(same as factory-sandbox: require PR, the CI check and the factory/review status, "
+                        "(require PR, the CI check and the factory/review status, "
                         "block force pushes and deletion).")
     else:
         say("protection: private repo, so guard-only (GitHub's free plan does not enforce rules here)")
