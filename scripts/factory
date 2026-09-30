@@ -194,10 +194,12 @@ def critic(args):
     out = folder / "critic.md"
     if out.exists():
         out.unlink()  # a stale file ending in END would look finished
-    # Hermes can take over 30s (herdr's default) to become ready; on 2026-09-30 the start timed out and
-    # --wait failed while the critic went on to run fine in its pane.
+    # `herdr agent start` returns only once the agent is idle and ready for input. Hermes started with
+    # `chat -q <query>` begins working at once and is never idle until it has finished, so the start always
+    # timed out (2026-09-30). Start Hermes interactively, wait until it is ready, then submit the query.
     run(["herdr", "agent", "start", f"critic-{int(time.time()) % 100000}", "--kind", "hermes", "--pane", pane,
-         "--timeout", "120000", "--", "-p", profile, "chat", "-q", query])
+         "--timeout", "120000", "--", "-p", profile, "chat"])
+    run(["herdr", "agent", "prompt", pane, query])
     result = {"pane": pane, "profile": profile, "output": str(out)}
     if args.wait:
         deadline = time.time() + args.timeout * 60
