@@ -60,8 +60,10 @@ tests each point.
 - For each product: moves a Backlog card to Execute only if its description starts with `spec:`, its
   epic's `epic.md` says "Approved by operator: yes", and every task in its "Depends on" is Done.
   Never moves `deploy:`, `goal:` or `brief:` cards.
-- Resolves "Depends on: 01" to the non-archived card whose spec file starts with `01-` in the same
-  epic folder.
+- Resolves "Depends on: 01" to every card, archived ones included, whose spec file starts with `01-` in
+  the same epic folder; the dependency is met when any of them is in Done. (Cleanup archives a card as
+  soon as it is Done, and an archived card keeps its column; looking only at active cards left a card
+  created later waiting forever, 2026-09-30.)
 - Sends a Herdr notification for each card newly in Needs you. Any comment it posts starts with
   `FACTORY:`.
 
