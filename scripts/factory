@@ -194,8 +194,10 @@ def critic(args):
     out = folder / "critic.md"
     if out.exists():
         out.unlink()  # a stale file ending in END would look finished
+    # Hermes can take over 30s (herdr's default) to become ready; on 2026-09-30 the start timed out and
+    # --wait failed while the critic went on to run fine in its pane.
     run(["herdr", "agent", "start", f"critic-{int(time.time()) % 100000}", "--kind", "hermes", "--pane", pane,
-         "--", "-p", profile, "chat", "-q", query])
+         "--timeout", "120000", "--", "-p", profile, "chat", "-q", query])
     result = {"pane": pane, "profile": profile, "output": str(out)}
     if args.wait:
         deadline = time.time() + args.timeout * 60
