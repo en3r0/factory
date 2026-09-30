@@ -266,14 +266,18 @@ def tick(args):
             run(["git", "-C", str(repo), "fetch", "origin"], check=False)
             cols = columns_by_id(repo)
             cards = board(repo, "card", "list")
+            all_cards = board(repo, "card", "list", "--visibility", "all")
         except FactoryError as e:
             print(f"{name}: {e}", file=sys.stderr)
             continue
-        by_spec = {}
-        for c in cards:
+        # Dependencies are looked up among archived cards too: cleanup archives a card as soon as it is
+        # Done, and an archived card keeps its Done column (2026-09-30: task 07 waited forever on an
+        # archived, Done task 04). Keep every card per spec, so an old failed card can't hide a Done one.
+        by_spec = []
+        for c in all_cards:
             first = (c.get("description") or "").splitlines()[:1]
             if first and first[0].startswith("spec: "):
-                by_spec[first[0][6:].strip()] = c
+                by_spec.append((first[0][6:].strip(), c))
         for c in cards:
             col = cols.get(c["column_id"])
             if col == "Needs you":
@@ -293,7 +297,7 @@ def tick(args):
                 continue
             ready = True
             for dep in depends_on(git_show(repo, spec_path)):
-                matches = [card for path, card in by_spec.items()
+                matches = [card for path, card in by_spec
                            if str(Path(path).parent) == folder and Path(path).name.startswith(f"{dep}-")]
                 if not any(cols.get(m["column_id"]) == "Done" for m in matches):
                     ready = False
