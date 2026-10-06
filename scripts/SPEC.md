@@ -21,6 +21,9 @@ tests each point.
 - Waits for the GitHub Actions runs on the PR's head commit via the Actions API (works on private
   repos with a fine-grained token; `gh pr checks` needs a checks permission those tokens lack).
 - Prints JSON; exit 0 all passed, 1 a run failed, 3 no CI within 5 minutes, 4 timeout.
+- Only the **newest run per workflow** on the head commit counts. An older superseded, re-run or
+  cancelled run is ignored, so a GitHub incident (or a manual cancel) cannot poison a commit whose
+  CI has since passed.
 - Agents never re-run CI (the token has no Actions write).
 
 ## factory critic <product> <plan folder>
