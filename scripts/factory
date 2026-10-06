@@ -318,8 +318,15 @@ def ci(args):
     sha = pr["headRefOid"]
     start = time.time()
     while True:
-        runs = json.loads(run(["gh", "run", "list", "--commit", sha, "--json",
-                               "databaseId,name,status,conclusion,event", "--limit", "50"]).stdout or "[]")
+        all_runs = json.loads(run(["gh", "run", "list", "--commit", sha, "--json",
+                                   "databaseId,name,status,conclusion,event", "--limit", "50"]).stdout or "[]")
+        # A commit can carry several runs of the same workflow: a superseded run, a re-run, or a run
+        # cancelled during a GitHub incident. Only the newest run per workflow reflects the commit's
+        # current state, so an older cancelled run must not fail a commit whose CI has since passed.
+        newest = {}
+        for r in sorted(all_runs, key=lambda r: r["databaseId"], reverse=True):
+            newest.setdefault(r["name"], r)
+        runs = list(newest.values())
         waited = time.time() - start
         if not runs and waited > 300:
             print(json.dumps({"pr": pr["url"], "commit": sha, "result": "no-ci"}))
