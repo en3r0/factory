@@ -136,6 +136,8 @@ Three rules follow from how Hermes memory works:
 | General marketing worker | No | Hermes or Pi per card | Video: ClipHuman, `shortform-idea-grill`, `net-new-video-editor` (ai-marketing), `video` (marketingskills). Editing: regex lint + `humanizer`, `copy-editing`. Launches: `launch` (`directory-submissions` dropped 2026-09-29: mostly mass account creation). Anything else ad hoc | Via Approve |
 | Publishing (#8) | — | Script, not an agent | Posts approved items at the strategist's scheduled time through the factory's own Postiz instance (official platform APIs), and sends approved emails | Already approved |
 
+**Outside the factory: X Reply Queue.** Built 2026-10-16 in `~/Projects/x-reply-queue`, not turned on. It drafts X replies (and video-reply outlines) in Dustin's voice onto a private page, and Dustin posts each one by hand; its finder reads the X API and is off. When Community (#9) starts drafting X replies, start from it instead of building another.
+
 **Planned, not active: affiliate websites.** A future product type. It would draw on Affitor's research, content and landing-page skills after cleanup: remove the "Powered by Affitor" footer and UTM tags, drop `reddit-post-writer`'s disguised-promotion pattern, and add FTC disclosure via `compliance-checker`.
 
 ## Approval gates
@@ -257,7 +259,7 @@ Things only you can do. The first list has no dependencies. The second waits for
 - [ ] LinkedIn developer app with the Share on LinkedIn product.
 - [ ] Google Cloud project with the YouTube Data API and a consent screen requesting only `youtube.upload`.
 - [ ] TikTok developer app with Login Kit and the Content Posting API (`user.info.basic`, `video.upload`); submit the audit when ready.
-- [ ] An X app under your pay-per-use account.
+- [ ] An X app under your pay-per-use account. (The X Reply Queue needs its own app and read-only bearer token; see its README.)
 - [ ] Threads, Bluesky and Mastodon accounts plus app passwords, for the platforms you want.
 - [ ] A Google service account for the SEO tool's Search Console access.
 - [ ] Confirm whether ClipHuman's existing brand social accounts connect to the factory's new apps. Your "take over" answer covered development.
