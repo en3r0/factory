@@ -86,7 +86,7 @@ def columns_by_id(repo):
 
 KIND_RULES = [
     (re.compile(r"^plans/[^/]+/deploy-[^/]+\.md$"), "deploy"),
-    (re.compile(r"^plans/[^/]+/\d+-[^/]+\.md$"), "spec"),
+    (re.compile(r"^plans/[^/]+/\d+[a-z]?-[^/]+\.md$"), "spec"),  # 02a-…: a task split in two
     (re.compile(r"^marketing/goals/[^/]+\.md$"), "goal"),
     (re.compile(r"^marketing/briefs/[^/]+\.md$"), "brief"),
 ]
@@ -232,7 +232,7 @@ def depends_on(spec_text):
     m = re.search(r"\*\*Depends on:\*\*\s*(.+)", spec_text or "")
     if not m or m.group(1).strip().lower().startswith("none"):
         return []
-    return re.findall(r"\b(\d{2,})\b", m.group(1))
+    return re.findall(r"\b(\d{2,}[a-z]?)\b", m.group(1))  # "01, 02a": a split task keeps its letter
 
 
 def sync_factory():
